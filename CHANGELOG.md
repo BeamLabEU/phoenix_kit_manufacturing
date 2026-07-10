@@ -25,9 +25,13 @@ All notable changes to this project will be documented in this file.
   running `mix phoenix_kit.update`.
 - Admin nav: the Manufacturing tab now carries **Dashboard**, **Machines**
   and **Types** subtabs (plus hidden create/edit form routes).
-- Dashboard now shows live machine / machine-type counts (degrading to `—`
-  when the tables have not been migrated yet).
+- Dashboard now shows live machine / machine-type counts (loaded in
+  `handle_params/3`, degrading to `—` when the tables have not been migrated
+  yet).
 - `PhoenixKitManufacturing.Errors` — centralized error-atom → message mapping.
+- i18n: gettext catalog re-synced to cover all module strings — complete
+  English (source) and Russian translations, plus an Estonian subset (the
+  remainder falls back to English).
 - Module infrastructure: `LICENSE`, `CHANGELOG.md`, `config/`, test suite,
   and `AGENTS.md`.
 

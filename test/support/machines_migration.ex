@@ -13,6 +13,8 @@ defmodule PhoenixKitManufacturing.Test.MachinesMigration do
 
   use Ecto.Migration
 
-  def up, do: PhoenixKitManufacturing.Migrations.Machines.up(prefix: "public")
-  def down, do: PhoenixKitManufacturing.Migrations.Machines.down(prefix: "public")
+  alias PhoenixKitManufacturing.Migrations.Machines
+
+  def up, do: Machines.up(prefix: "public")
+  def down, do: Machines.down(prefix: "public")
 end

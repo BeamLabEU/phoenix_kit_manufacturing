@@ -18,9 +18,19 @@ defmodule PhoenixKitManufacturing.Web.DashboardLive do
 
   @impl true
   def mount(_params, _session, socket) do
+    # mount/3 runs twice (HTTP + WebSocket) — no DB queries here. Counts are
+    # loaded in handle_params/3, which runs once per navigation.
     {:ok,
      socket
      |> assign(:page_title, gettext("Manufacturing"))
+     |> assign(:machine_count, nil)
+     |> assign(:type_count, nil)}
+  end
+
+  @impl true
+  def handle_params(_params, _uri, socket) do
+    {:noreply,
+     socket
      |> assign(:machine_count, safe_count(&Machines.count_machines/0))
      |> assign(:type_count, safe_count(&Machines.count_machine_types/0))}
   end
