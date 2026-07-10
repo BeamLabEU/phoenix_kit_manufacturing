@@ -11,7 +11,35 @@ defmodule PhoenixKitManufacturing.Paths do
 
   @base "/admin/manufacturing"
 
-  @doc "Manufacturing dashboard."
+  @doc "Manufacturing dashboard (module landing)."
   @spec index() :: String.t()
   def index, do: Routes.path(@base)
+
+  # ── Machines ────────────────────────────────────────────────────────
+
+  @doc "Machines list."
+  @spec machines() :: String.t()
+  def machines, do: Routes.path("#{@base}/machines")
+
+  @doc "New machine form."
+  @spec machine_new() :: String.t()
+  def machine_new, do: Routes.path("#{@base}/machines/new")
+
+  @doc "Edit machine form."
+  @spec machine_edit(String.t()) :: String.t()
+  def machine_edit(uuid), do: Routes.path("#{@base}/machines/#{uuid}/edit")
+
+  # ── Machine types ───────────────────────────────────────────────────
+
+  @doc "Machine types list."
+  @spec types() :: String.t()
+  def types, do: Routes.path("#{@base}/machines/types")
+
+  @doc "New machine type form."
+  @spec type_new() :: String.t()
+  def type_new, do: Routes.path("#{@base}/machines/types/new")
+
+  @doc "Edit machine type form."
+  @spec type_edit(String.t()) :: String.t()
+  def type_edit(uuid), do: Routes.path("#{@base}/machines/types/#{uuid}/edit")
 end
