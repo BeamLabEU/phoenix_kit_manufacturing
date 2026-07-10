@@ -1,0 +1,39 @@
+## This file is a PO Template file.
+##
+## "msgid"s here are often extracted from source code.
+## Add new messages manually only if they're dynamic
+## messages that can't be statically extracted.
+##
+## Run "mix gettext.extract" to bring this file up to
+## date. Leave "msgstr"s empty as changing them here has no
+## effect: edit them in PO (.po) files instead.
+#
+msgid ""
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:43
+#: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:54
+#, elixir-autogen, elixir-format
+msgid "Coming soon"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:41
+#, elixir-autogen, elixir-format
+msgid "Machines"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:14
+#: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:25
+#, elixir-autogen, elixir-format
+msgid "Manufacturing"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:51
+#, elixir-autogen, elixir-format
+msgid "Production Orders"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:28
+#, elixir-autogen, elixir-format
+msgid "This module is under development. Machines and production orders will appear here."
+msgstr ""

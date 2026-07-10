@@ -1,0 +1,39 @@
+## "msgid"s in this file come from POT (.pot) files.
+###
+### Do not add, change, or remove "msgid"s manually here as
+### they're tied to the ones in the corresponding POT file
+### (with the same domain).
+###
+### Use "mix gettext.extract --merge" or "mix gettext.merge"
+### to merge POT files into PO files.
+msgid ""
+msgstr ""
+"Language: en\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:43
+#: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:54
+#, elixir-autogen, elixir-format
+msgid "Coming soon"
+msgstr "Coming soon"
+
+#: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:41
+#, elixir-autogen, elixir-format
+msgid "Machines"
+msgstr "Machines"
+
+#: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:14
+#: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:25
+#, elixir-autogen, elixir-format
+msgid "Manufacturing"
+msgstr "Manufacturing"
+
+#: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:51
+#, elixir-autogen, elixir-format
+msgid "Production Orders"
+msgstr "Production Orders"
+
+#: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:28
+#, elixir-autogen, elixir-format
+msgid "This module is under development. Machines and production orders will appear here."
+msgstr "This module is under development. Machines and production orders will appear here."
