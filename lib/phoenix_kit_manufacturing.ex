@@ -105,7 +105,7 @@ defmodule PhoenixKitManufacturing do
         redirect_to_first_subtab: true,
         live_view: {PhoenixKitManufacturing.Web.DashboardLive, :index}
       },
-      # Subtabs — Dashboard (landing), Machines, Types, Operations
+      # Subtabs — Dashboard (landing), Machines, Types, Operations, Defect Reasons
       %Tab{
         id: :manufacturing_dashboard,
         label: "Dashboard",
@@ -155,6 +155,17 @@ defmodule PhoenixKitManufacturing do
         parent: :manufacturing,
         live_view: {PhoenixKitManufacturing.Web.MachinesLive, :operations}
       },
+      %Tab{
+        id: :manufacturing_defect_reasons,
+        label: "Defect Reasons",
+        icon: "hero-exclamation-triangle",
+        path: "manufacturing/machines/defect-reasons",
+        priority: 165,
+        level: :admin,
+        permission: module_key(),
+        parent: :manufacturing,
+        live_view: {PhoenixKitManufacturing.Web.MachinesLive, :defect_reasons}
+      },
       # Static paths MUST come before wildcard :uuid paths.
       %Tab{
         id: :manufacturing_machine_new,
@@ -192,6 +203,18 @@ defmodule PhoenixKitManufacturing do
         visible: false,
         live_view: {PhoenixKitManufacturing.Web.OperationFormLive, :new}
       },
+      %Tab{
+        id: :manufacturing_defect_reason_new,
+        label: "New Defect Reason",
+        icon: "hero-plus",
+        path: "manufacturing/machines/defect-reasons/new",
+        priority: 166,
+        level: :admin,
+        permission: module_key(),
+        parent: :manufacturing,
+        visible: false,
+        live_view: {PhoenixKitManufacturing.Web.DefectReasonFormLive, :new}
+      },
       # Wildcard :uuid routes LAST.
       %Tab{
         id: :manufacturing_type_edit,
@@ -228,6 +251,18 @@ defmodule PhoenixKitManufacturing do
         parent: :manufacturing,
         visible: false,
         live_view: {PhoenixKitManufacturing.Web.OperationFormLive, :edit}
+      },
+      %Tab{
+        id: :manufacturing_defect_reason_edit,
+        label: "Edit Defect Reason",
+        icon: "hero-pencil-square",
+        path: "manufacturing/machines/defect-reasons/:uuid/edit",
+        priority: 167,
+        level: :admin,
+        permission: module_key(),
+        parent: :manufacturing,
+        visible: false,
+        live_view: {PhoenixKitManufacturing.Web.DefectReasonFormLive, :edit}
       }
     ]
   end
