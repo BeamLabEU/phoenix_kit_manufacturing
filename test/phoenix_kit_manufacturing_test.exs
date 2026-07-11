@@ -86,6 +86,27 @@ defmodule PhoenixKitManufacturingTest do
       end
     end
 
+    test "all tabs carry the module's gettext backend and default domain" do
+      for tab <- PhoenixKitManufacturing.admin_tabs() do
+        assert tab.gettext_backend == PhoenixKitManufacturing.Gettext
+        assert tab.gettext_domain == "default"
+      end
+    end
+
+    test "sidebar labels resolve through the gettext backend" do
+      main = Enum.find(PhoenixKitManufacturing.admin_tabs(), &(&1.id == :manufacturing))
+
+      dashboard =
+        Enum.find(PhoenixKitManufacturing.admin_tabs(), &(&1.id == :manufacturing_dashboard))
+
+      # Each ExUnit test runs in its own process, so this process-scoped
+      # locale change doesn't leak into other tests.
+      Gettext.put_locale(PhoenixKitManufacturing.Gettext, "et")
+
+      assert Tab.localized_label(main) == "Tootmine"
+      assert Tab.localized_label(dashboard) == "Töölaud"
+    end
+
     test "all subtabs reference the main tab as parent" do
       [main | subtabs] = PhoenixKitManufacturing.admin_tabs()
 

@@ -93,6 +93,8 @@ defmodule PhoenixKitManufacturing do
       %Tab{
         id: :manufacturing,
         label: "Manufacturing",
+        gettext_backend: PhoenixKitManufacturing.Gettext,
+        gettext_domain: "default",
         icon: "hero-wrench-screwdriver",
         path: "manufacturing",
         priority: 154,
@@ -109,6 +111,8 @@ defmodule PhoenixKitManufacturing do
       %Tab{
         id: :manufacturing_dashboard,
         label: "Dashboard",
+        gettext_backend: PhoenixKitManufacturing.Gettext,
+        gettext_domain: "default",
         icon: "hero-home",
         path: "manufacturing",
         priority: 155,
@@ -121,6 +125,8 @@ defmodule PhoenixKitManufacturing do
       %Tab{
         id: :manufacturing_machines,
         label: "Machines",
+        gettext_backend: PhoenixKitManufacturing.Gettext,
+        gettext_domain: "default",
         icon: "hero-cog-6-tooth",
         path: "manufacturing/machines",
         priority: 156,
@@ -136,6 +142,8 @@ defmodule PhoenixKitManufacturing do
       %Tab{
         id: :manufacturing_types,
         label: "Types",
+        gettext_backend: PhoenixKitManufacturing.Gettext,
+        gettext_domain: "default",
         icon: "hero-tag",
         path: "manufacturing/machines/types",
         priority: 157,
@@ -147,6 +155,8 @@ defmodule PhoenixKitManufacturing do
       %Tab{
         id: :manufacturing_operations,
         label: "Operations",
+        gettext_backend: PhoenixKitManufacturing.Gettext,
+        gettext_domain: "default",
         icon: "hero-clock",
         path: "manufacturing/machines/operations",
         priority: 158,
@@ -158,6 +168,8 @@ defmodule PhoenixKitManufacturing do
       %Tab{
         id: :manufacturing_defect_reasons,
         label: "Defect Reasons",
+        gettext_backend: PhoenixKitManufacturing.Gettext,
+        gettext_domain: "default",
         icon: "hero-exclamation-triangle",
         path: "manufacturing/machines/defect-reasons",
         priority: 165,
@@ -170,6 +182,8 @@ defmodule PhoenixKitManufacturing do
       %Tab{
         id: :manufacturing_machine_new,
         label: "New Machine",
+        gettext_backend: PhoenixKitManufacturing.Gettext,
+        gettext_domain: "default",
         icon: "hero-plus",
         path: "manufacturing/machines/new",
         priority: 159,
@@ -182,6 +196,8 @@ defmodule PhoenixKitManufacturing do
       %Tab{
         id: :manufacturing_type_new,
         label: "New Type",
+        gettext_backend: PhoenixKitManufacturing.Gettext,
+        gettext_domain: "default",
         icon: "hero-plus",
         path: "manufacturing/machines/types/new",
         priority: 160,
@@ -194,6 +210,8 @@ defmodule PhoenixKitManufacturing do
       %Tab{
         id: :manufacturing_operation_new,
         label: "New Operation",
+        gettext_backend: PhoenixKitManufacturing.Gettext,
+        gettext_domain: "default",
         icon: "hero-plus",
         path: "manufacturing/machines/operations/new",
         priority: 161,
@@ -206,6 +224,8 @@ defmodule PhoenixKitManufacturing do
       %Tab{
         id: :manufacturing_defect_reason_new,
         label: "New Defect Reason",
+        gettext_backend: PhoenixKitManufacturing.Gettext,
+        gettext_domain: "default",
         icon: "hero-plus",
         path: "manufacturing/machines/defect-reasons/new",
         priority: 166,
@@ -219,6 +239,8 @@ defmodule PhoenixKitManufacturing do
       %Tab{
         id: :manufacturing_type_edit,
         label: "Edit Type",
+        gettext_backend: PhoenixKitManufacturing.Gettext,
+        gettext_domain: "default",
         icon: "hero-pencil-square",
         path: "manufacturing/machines/types/:uuid/edit",
         priority: 162,
@@ -231,6 +253,8 @@ defmodule PhoenixKitManufacturing do
       %Tab{
         id: :manufacturing_machine_edit,
         label: "Edit Machine",
+        gettext_backend: PhoenixKitManufacturing.Gettext,
+        gettext_domain: "default",
         icon: "hero-pencil-square",
         path: "manufacturing/machines/:uuid/edit",
         priority: 163,
@@ -243,6 +267,8 @@ defmodule PhoenixKitManufacturing do
       %Tab{
         id: :manufacturing_operation_edit,
         label: "Edit Operation",
+        gettext_backend: PhoenixKitManufacturing.Gettext,
+        gettext_domain: "default",
         icon: "hero-pencil-square",
         path: "manufacturing/machines/operations/:uuid/edit",
         priority: 164,
@@ -255,6 +281,8 @@ defmodule PhoenixKitManufacturing do
       %Tab{
         id: :manufacturing_defect_reason_edit,
         label: "Edit Defect Reason",
+        gettext_backend: PhoenixKitManufacturing.Gettext,
+        gettext_domain: "default",
         icon: "hero-pencil-square",
         path: "manufacturing/machines/defect-reasons/:uuid/edit",
         priority: 167,
