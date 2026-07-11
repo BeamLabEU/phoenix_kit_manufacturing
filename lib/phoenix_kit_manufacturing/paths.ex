@@ -42,4 +42,18 @@ defmodule PhoenixKitManufacturing.Paths do
   @doc "Edit machine type form."
   @spec type_edit(String.t()) :: String.t()
   def type_edit(uuid), do: Routes.path("#{@base}/machines/types/#{uuid}/edit")
+
+  # ── Operations ──────────────────────────────────────────────────────
+
+  @doc "Operations list."
+  @spec operations() :: String.t()
+  def operations, do: Routes.path("#{@base}/machines/operations")
+
+  @doc "New operation form."
+  @spec operation_new() :: String.t()
+  def operation_new, do: Routes.path("#{@base}/machines/operations/new")
+
+  @doc "Edit operation form."
+  @spec operation_edit(String.t()) :: String.t()
+  def operation_edit(uuid), do: Routes.path("#{@base}/machines/operations/#{uuid}/edit")
 end
