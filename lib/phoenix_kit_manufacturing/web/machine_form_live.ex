@@ -25,6 +25,18 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
   `machine[metadata][KEY]` (raw `name=`, not `@form[:atom]` — `metadata` is
   a freeform map keyed by whatever the linked types define, not a fixed
   changeset field). Recomputed whenever the type selection changes.
+
+  ## Files & featured image
+
+  Wired through `PhoenixKitManufacturing.Attachments`, the same
+  folder-scoped pattern used by `PhoenixKitLocations.Attachments` (see
+  that module's doc for the general mechanics) and rendered with
+  `PhoenixKitManufacturing.Web.Components.FilesCard`. This form only
+  ever has one Attachments scope — the literal string `"machine"` — so
+  every Attachments event handler below hardcodes it rather than
+  reading `phx-value-scope` off the event params. A `:new` machine gets
+  a "pending" folder (no uuid yet); `save_machine/3` renames it to its
+  deterministic `machine-<uuid>` name right after the first save.
   """
 
   use Phoenix.LiveView
@@ -38,9 +50,10 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
   import PhoenixKitWeb.Components.Core.Select
   import PhoenixKitWeb.Components.Core.Textarea
   import PhoenixKitWeb.Components.Core.Checkbox
+  import PhoenixKitManufacturing.Web.Components.FilesCard, only: [files_card_body: 1]
 
   alias PhoenixKitLocations.Web.Components.PlacePicker
-  alias PhoenixKitManufacturing.{Errors, Machines, Paths}
+  alias PhoenixKitManufacturing.{Attachments, Errors, Machines, Paths}
   alias PhoenixKitManufacturing.Schemas.Machine
 
   @statuses ~w(active maintenance repair mothballed decommissioned)
@@ -74,7 +87,10 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
            space_uuid: machine.space_uuid,
            show_place_picker: is_nil(machine.location_uuid) and is_nil(machine.space_uuid)
          )
-         |> assign_form(changeset)}
+         |> assign_form(changeset)
+         |> Attachments.init()
+         |> Attachments.allow_attachment_upload()
+         |> Attachments.mount(scope: "machine", resource: machine)}
     end
   end
 
@@ -153,6 +169,30 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
     save_machine(socket, socket.assigns.action, params)
   end
 
+  # ── Attachments (featured image modal + inline files dropzone) ──
+  # Scope is always the literal "machine" — this form has exactly one
+  # Files/Attachments scope, so there's nothing to read off
+  # phx-value-scope (contrast with multi-scope hosts like
+  # PhoenixKitLocations, which forward the scope from each button).
+
+  def handle_event("open_featured_image_picker", _params, socket),
+    do: Attachments.open_featured_image_picker(socket, "machine")
+
+  def handle_event("close_media_selector", _params, socket),
+    do: {:noreply, Attachments.close_media_selector(socket)}
+
+  def handle_event("cancel_upload", %{"ref" => ref}, socket),
+    do: Attachments.cancel_attachment_upload(socket, ref)
+
+  def handle_event("remove_file", %{"uuid" => uuid}, socket),
+    do: Attachments.trash_file(socket, "machine", uuid)
+
+  def handle_event("clear_featured_image", _params, socket),
+    do: Attachments.clear_featured_image(socket, "machine")
+
+  def handle_event("set_active_upload_scope", _params, socket),
+    do: {:noreply, Attachments.set_active_upload_scope(socket, "machine")}
+
   # Handles a pick from the Location card's PlacePicker (id
   # "machine-place-picker") — must come before the catch-all clause below,
   # Elixir matches `handle_info/2` clauses in source order.
@@ -169,6 +209,12 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
      |> assign(:show_place_picker, false)}
   end
 
+  def handle_info({:media_selected, file_uuids}, socket),
+    do: Attachments.handle_media_selected(socket, file_uuids)
+
+  def handle_info({:media_selector_closed}, socket),
+    do: {:noreply, Attachments.close_media_selector(socket)}
+
   # Defensive catch-all for unmatched messages. Logs at :debug.
   def handle_info(msg, socket) do
     Logger.debug("[MachineFormLive] ignoring unrelated message: #{inspect(msg)}")
@@ -178,6 +224,13 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
   defp save_machine(socket, :new, params) do
     case Machines.create_machine(prepare_params(params, socket), actor_opts(socket)) do
       {:ok, machine} ->
+        # The Files card may have already created a "pending" folder (no
+        # uuid to name it after yet, see `Attachments.folder_name_for/1`)
+        # if the user uploaded a file before the first save. Rename it
+        # to the machine's now-known deterministic folder name.
+        machine_folder = Attachments.state(socket, "machine").folder_uuid
+        _ = Attachments.maybe_rename_pending_folder_for(machine_folder, machine)
+
         sync_types_and_redirect(socket, machine.uuid, gettext("Machine created."))
 
       {:error, changeset} ->
@@ -200,10 +253,11 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
   end
 
   # Merges the Location card's picked uuids (tracked in socket assigns, see
-  # the moduledoc — never actual `<form>` fields) and coerces boolean-typed
+  # the moduledoc — never actual `<form>` fields), coerces boolean-typed
   # dynamic `metadata` fields from their submitted "true"/"on"/"false"
-  # strings into real booleans. Every other metadata value is stored
-  # exactly as submitted (see `Machines.merged_field_template/1` doc).
+  # strings into real booleans (every other metadata value is stored
+  # exactly as submitted, see `Machines.merged_field_template/1` doc), and
+  # merges the Files card's folder/featured-image uuids into `params["data"]`.
   defp prepare_params(params, socket) do
     params
     |> Map.put("location_uuid", socket.assigns.location_uuid)
@@ -212,6 +266,7 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
       "metadata",
       coerce_metadata(Map.get(params, "metadata", %{}), socket.assigns.merged_template)
     )
+    |> Attachments.inject_attachment_data(socket, "machine")
   end
 
   defp coerce_metadata(metadata, merged_template) do
@@ -304,6 +359,21 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
   def render(assigns) do
     ~H"""
     <div class="flex flex-col w-full px-4 py-8 gap-6">
+      <%!-- Folder-scoped media selector (featured-image picker). Modal
+           state lives in the shared Attachments assigns (see moduledoc);
+           `scope_folder_id` pulls the "machine" scope's folder — the
+           only scope this form ever opens the picker for. --%>
+      <.live_component
+        module={PhoenixKitWeb.Live.Components.MediaSelectorModal}
+        id="machine-form-media-selector"
+        show={@show_media_selector}
+        mode={@media_selection_mode}
+        file_type_filter={@media_filter}
+        selected_uuids={@media_selected_uuids}
+        scope_folder_id={Attachments.state(%{assigns: assigns}, "machine").folder_uuid}
+        phoenix_kit_current_user={assigns[:phoenix_kit_current_user]}
+      />
+
       <.admin_page_header
         title={@page_title}
         subtitle={
@@ -476,6 +546,16 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
                 </div>
               </div>
 
+              <div class="flex flex-col gap-4">
+                <div class="divider my-0"></div>
+
+                <.files_card_body
+                  scope="machine"
+                  state={Attachments.state(%{assigns: assigns}, "machine")}
+                  uploads={@uploads}
+                />
+              </div>
+
               <div class="divider my-0"></div>
 
               <div class="flex justify-end gap-3">
@@ -483,9 +563,14 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
                 <button
                   type="submit"
                   class="btn btn-primary phx-submit-loading:opacity-75"
+                  disabled={@uploads.attachment_files.entries != []}
                   phx-disable-with={if @action == :new, do: gettext("Creating..."), else: gettext("Saving...")}
                 >
-                  {if @action == :new, do: gettext("Create Machine"), else: gettext("Save Changes")}
+                  {cond do
+                    @uploads.attachment_files.entries != [] -> gettext("Waiting for uploads...")
+                    @action == :new -> gettext("Create Machine")
+                    true -> gettext("Save Changes")
+                  end}
                 </button>
               </div>
             </div>
