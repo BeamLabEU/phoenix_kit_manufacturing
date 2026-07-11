@@ -160,7 +160,30 @@ defmodule PhoenixKitManufacturing.Migrations.Machines do
   # while the first commits) can never read back as "fully migrated to V3".
   defp probe_v3?(prefix) do
     table_exists?(prefix, "phoenix_kit_operations") and
-      table_exists?(prefix, "phoenix_kit_machine_operations")
+      table_exists?(prefix, "phoenix_kit_machine_operations") and
+      unique_index_exists?(
+        prefix,
+        "phoenix_kit_machine_operations",
+        "idx_machine_operations_unique"
+      )
+  end
+
+  # The unique (machine_uuid, operation_uuid) index is a structural
+  # integrity element, not an optimisation: without it two concurrent
+  # sync_machine_operations calls can insert duplicate links. Include it
+  # in the probe so a partial PgBouncer apply that ate the CREATE UNIQUE
+  # INDEX (but committed both tables) still reads back as "V3 missing".
+  defp unique_index_exists?(prefix, table, index) do
+    query = """
+    SELECT 1 FROM pg_indexes
+    WHERE schemaname = $1 AND tablename = $2 AND indexname = $3
+      AND indexdef LIKE 'CREATE UNIQUE%'
+    """
+
+    case repo().query(query, [prefix || "public", table, index]) do
+      {:ok, %{rows: [[1]]}} -> true
+      _ -> false
+    end
   end
 
   # V4 created a single new table (the defect-reasons directory) via one

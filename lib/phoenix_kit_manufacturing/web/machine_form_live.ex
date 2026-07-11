@@ -353,12 +353,22 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
     Enum.reduce(merged_template, metadata, fn row, acc ->
       if template_row(row, :type) == "boolean" do
         key = template_row(row, :key)
-        Map.put(acc, key, Map.get(metadata, key) in ["true", "on"])
+        coerce_boolean_field(acc, key, Map.get(metadata, key))
       else
         acc
       end
     end)
   end
+
+  # Only coerce values that plausibly came from a checkbox. A field whose
+  # template type was later switched to "boolean" may still hold an old
+  # scalar (e.g. "500" from a former number field) — leave it untouched
+  # instead of silently destroying it on the next unrelated save.
+  defp coerce_boolean_field(acc, key, value)
+       when value in [nil, "", "true", "on", "false", "off", true, false],
+       do: Map.put(acc, key, value in ["true", "on", true])
+
+  defp coerce_boolean_field(acc, _key, _value), do: acc
 
   # Blank/unparseable input ⇒ `nil` (falls back to the operation's own
   # `base_time_norm_seconds`, see `Machines.sync_machine_operations/3`),

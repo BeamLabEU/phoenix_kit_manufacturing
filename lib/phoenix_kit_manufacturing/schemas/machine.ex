@@ -120,6 +120,7 @@ defmodule PhoenixKitManufacturing.Schemas.Machine do
     |> validate_length(:location_note, max: 500)
     |> validate_length(:notes, max: 2000)
     |> validate_number(:to_interval_days, greater_than: 0)
+    |> validate_number(:manufacture_year, greater_than: 1900, less_than: 2101)
     |> validate_inclusion(:status, @statuses)
     |> maybe_compute_next_maintenance()
   end
