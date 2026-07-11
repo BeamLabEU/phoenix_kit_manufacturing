@@ -11,29 +11,386 @@ msgstr ""
 "Language: et\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:43
-#: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:54
+#: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:102
 #, elixir-autogen, elixir-format
 msgid "Coming soon"
 msgstr "Peagi tulekul"
 
-#: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:41
+#: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:68
+#: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:82
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:32
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:53
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:175
 #, elixir-autogen, elixir-format
 msgid "Machines"
 msgstr "Masinad"
 
-#: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:14
 #: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:25
+#: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:59
 #, elixir-autogen, elixir-format
 msgid "Manufacturing"
 msgstr "Tootmine"
 
-#: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:51
+#: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:100
 #, elixir-autogen, elixir-format
 msgid "Production Orders"
 msgstr "Tootmistellimused"
 
-#: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:28
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:266
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:369
 #, elixir-autogen, elixir-format
-msgid "This module is under development. Machines and production orders will appear here."
-msgstr "Moodul on arendamisel. Siia ilmuvad masinad ja tootmistellimused."
+msgid "Actions"
+msgstr "Tegevused"
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:172
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:221
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:437
+#, elixir-autogen, elixir-format
+msgid "Active"
+msgstr "Aktiivne"
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:184
+#, elixir-autogen, elixir-format
+msgid "Add a machine to the reference book."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/errors.ex:35
+#, elixir-autogen, elixir-format
+msgid "An unexpected error occurred."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:208
+#, elixir-autogen, elixir-format
+msgid "Brief description of this machine type..."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:280
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:232
+#, elixir-autogen, elixir-format
+msgid "Cancel"
+msgstr "Tühista"
+
+#: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:93
+#, elixir-autogen, elixir-format
+msgid "Categories"
+msgstr "Kategooriad"
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:178
+#, elixir-autogen, elixir-format
+msgid "Categories used to tag machines."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:251
+#, elixir-autogen, elixir-format
+msgid "Click to toggle. A machine can have multiple types."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:205
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:251
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:261
+#, elixir-autogen, elixir-format
+msgid "Code"
+msgstr "Kood"
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:286
+#, elixir-autogen, elixir-format
+msgid "Create Machine"
+msgstr "Loo masin"
+
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:238
+#, elixir-autogen, elixir-format
+msgid "Create Type"
+msgstr "Loo tüüp"
+
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:151
+#, elixir-autogen, elixir-format
+msgid "Create a new machine type for categorizing machines."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:284
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:236
+#, elixir-autogen, elixir-format
+msgid "Creating..."
+msgstr "Loomine..."
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:174
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:440
+#, elixir-autogen, elixir-format
+msgid "Decommissioned"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:215
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:226
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:309
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:331
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:401
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:423
+#, elixir-autogen, elixir-format
+msgid "Delete"
+msgstr "Kustuta"
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:212
+#, elixir-autogen, elixir-format
+msgid "Delete Machine"
+msgstr "Kustuta masin"
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:223
+#, elixir-autogen, elixir-format
+msgid "Delete Machine Type"
+msgstr "Kustuta masinatüüp"
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:231
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:206
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:357
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:366
+#, elixir-autogen, elixir-format
+msgid "Description"
+msgstr "Kirjeldus"
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:301
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:323
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:393
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:415
+#, elixir-autogen, elixir-format
+msgid "Edit"
+msgstr "Muuda"
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:83
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:58
+#, elixir-autogen, elixir-format
+msgid "Edit %{name}"
+msgstr "Muuda %{name}"
+
+#: lib/phoenix_kit_manufacturing/errors.ex:30
+#, elixir-autogen, elixir-format
+msgid "Failed to delete machine type."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/errors.ex:29
+#, elixir-autogen, elixir-format
+msgid "Failed to delete machine."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:69
+#, elixir-autogen, elixir-format
+msgid "Failed to load machine types."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:61
+#, elixir-autogen, elixir-format
+msgid "Failed to load machines."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:84
+#, elixir-autogen, elixir-format
+msgid "In the reference book"
+msgstr "Teatmikus"
+
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:221
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:438
+#, elixir-autogen, elixir-format
+msgid "Inactive"
+msgstr "Mitteaktiivne"
+
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:225
+#, elixir-autogen, elixir-format
+msgid "Inactive types won't appear in the machine type selection."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:206
+#, elixir-autogen, elixir-format
+msgid "Inventory number, e.g. M-001"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:224
+#, elixir-autogen, elixir-format
+msgid "Location"
+msgstr "Asukoht"
+
+#: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:91
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:248
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:54
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:175
+#, elixir-autogen, elixir-format
+msgid "Machine Types"
+msgstr "Masinatüübid"
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:124
+#, elixir-autogen, elixir-format
+msgid "Machine created."
+msgstr "Masin loodud."
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:149
+#, elixir-autogen, elixir-format
+msgid "Machine deleted."
+msgstr "Masin kustutatud."
+
+#: lib/phoenix_kit_manufacturing/errors.ex:27
+#, elixir-autogen, elixir-format
+msgid "Machine not found."
+msgstr "Masinat ei leitud."
+
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:108
+#, elixir-autogen, elixir-format
+msgid "Machine type created."
+msgstr "Masinatüüp loodud."
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:150
+#, elixir-autogen, elixir-format
+msgid "Machine type deleted."
+msgstr "Masinatüüp kustutatud."
+
+#: lib/phoenix_kit_manufacturing/errors.ex:28
+#, elixir-autogen, elixir-format
+msgid "Machine type not found."
+msgstr "Masinatüüpi ei leitud."
+
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:121
+#, elixir-autogen, elixir-format
+msgid "Machine type updated."
+msgstr "Masinatüüp uuendatud."
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:134
+#, elixir-autogen, elixir-format
+msgid "Machine updated."
+msgstr "Masin uuendatud."
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:173
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:439
+#, elixir-autogen, elixir-format
+msgid "Maintenance"
+msgstr "Hooldus"
+
+#: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:62
+#, elixir-autogen, elixir-format
+msgid "Manage your machines reference book. Production orders and warehouse integration are coming soon."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:211
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:262
+#, elixir-autogen, elixir-format
+msgid "Manufacturer"
+msgstr "Tootja"
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:196
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:191
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:260
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:365
+#, elixir-autogen, elixir-format
+msgid "Name"
+msgstr "Nimi"
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:82
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:188
+#, elixir-autogen, elixir-format
+msgid "New Machine"
+msgstr "Uus masin"
+
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:57
+#, elixir-autogen, elixir-format
+msgid "New Machine Type"
+msgstr "Uus masinatüüp"
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:195
+#, elixir-autogen, elixir-format
+msgid "New Type"
+msgstr "Uus tüüp"
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:343
+#, elixir-autogen, elixir-format
+msgid "No machine types yet."
+msgstr "Masinatüüpe veel pole."
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:237
+#, elixir-autogen, elixir-format
+msgid "No machines yet."
+msgstr "Masinaid veel pole."
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:233
+#, elixir-autogen, elixir-format
+msgid "Notes about this machine..."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:179
+#, elixir-autogen, elixir-format
+msgid "Production equipment reference book."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:286
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:238
+#, elixir-autogen, elixir-format
+msgid "Save Changes"
+msgstr "Salvesta muudatused"
+
+#: lib/phoenix_kit_manufacturing/errors.ex:33
+#, elixir-autogen, elixir-format
+msgid "Saved but failed to update type assignments."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:284
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:236
+#, elixir-autogen, elixir-format
+msgid "Saving..."
+msgstr "Salvestamine..."
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:219
+#, elixir-autogen, elixir-format
+msgid "Serial number"
+msgstr "Seerianumber"
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:238
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:220
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:253
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:264
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:358
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:367
+#, elixir-autogen, elixir-format
+msgid "Status"
+msgstr "Olek"
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:225
+#, elixir-autogen, elixir-format
+msgid "This will permanently delete this machine type. Machines using it will lose the type association."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:214
+#, elixir-autogen, elixir-format
+msgid "This will permanently delete this machine. This cannot be undone."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:71
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:252
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:263
+#, elixir-autogen, elixir-format
+msgid "Types"
+msgstr "Tüübid"
+
+#: lib/phoenix_kit_manufacturing/errors.ex:40
+#, elixir-autogen, elixir-format
+msgid "Unexpected error: %{reason}"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:185
+#, elixir-autogen, elixir-format
+msgid "Update machine details."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:152
+#, elixir-autogen, elixir-format
+msgid "Update machine type details."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:225
+#, elixir-autogen, elixir-format
+msgid "Workshop / room / warehouse"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:197
+#, elixir-autogen, elixir-format
+msgid "e.g., CNC Mill #3"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:192
+#, elixir-autogen, elixir-format
+msgid "e.g., CNC, Milling, Press, Laser cutter"
+msgstr ""
