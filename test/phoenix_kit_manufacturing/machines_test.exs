@@ -3,7 +3,7 @@ defmodule PhoenixKitManufacturing.MachinesTest do
   # the DB is unavailable (see test_helper.exs).
   use PhoenixKitManufacturing.DataCase, async: true
 
-  alias PhoenixKitManufacturing.Machines
+  alias PhoenixKitManufacturing.{Machines, Operations}
   alias PhoenixKitManufacturing.Schemas.{Machine, MachineType}
 
   describe "machine types" do
@@ -83,6 +83,88 @@ defmodule PhoenixKitManufacturing.MachinesTest do
       {:ok, :synced} = Machines.sync_machine_types(machine.uuid, [cnc.uuid])
       {:ok, _} = Machines.delete_machine_type(cnc)
       assert Machines.linked_type_uuids(machine.uuid) == []
+    end
+  end
+
+  describe "machine ↔ operation linking" do
+    setup do
+      {:ok, machine} = Machines.create_machine(%{name: "CNC-01"})
+      {:ok, cutting} = Operations.create_operation(%{name: "Cutting", base_time_norm_seconds: 60})
+
+      {:ok, welding} =
+        Operations.create_operation(%{name: "Welding", base_time_norm_seconds: 120})
+
+      %{machine: machine, cutting: cutting, welding: welding}
+    end
+
+    test "sync links operations, with and without an override", %{
+      machine: machine,
+      cutting: cutting,
+      welding: welding
+    } do
+      assert {:ok, :synced} =
+               Machines.sync_machine_operations(machine.uuid, %{
+                 cutting.uuid => 90,
+                 welding.uuid => nil
+               })
+
+      assert Machines.linked_operation_overrides(machine.uuid) == %{
+               cutting.uuid => 90,
+               welding.uuid => nil
+             }
+
+      assert Machines.has_operation?(machine.uuid, cutting.uuid)
+      refute Machines.has_operation?(machine.uuid, Ecto.UUID.generate())
+
+      ops = Machines.list_machine_operations(machine.uuid)
+      assert Enum.map(ops, & &1.operation.name) == ["Cutting", "Welding"]
+      assert Enum.find(ops, &(&1.operation.uuid == cutting.uuid)).time_norm_seconds == 90
+      assert Enum.find(ops, &(&1.operation.uuid == welding.uuid)).time_norm_seconds == nil
+    end
+
+    test "sync removes an operation link", %{machine: machine, cutting: cutting, welding: welding} do
+      {:ok, :synced} =
+        Machines.sync_machine_operations(machine.uuid, %{cutting.uuid => nil, welding.uuid => nil})
+
+      assert {:ok, :synced} =
+               Machines.sync_machine_operations(machine.uuid, %{cutting.uuid => nil})
+
+      assert Machines.linked_operation_overrides(machine.uuid) == %{cutting.uuid => nil}
+      refute Machines.has_operation?(machine.uuid, welding.uuid)
+    end
+
+    test "changing only the override (same operation set) still syncs, not a no-op", %{
+      machine: machine,
+      cutting: cutting
+    } do
+      {:ok, :synced} = Machines.sync_machine_operations(machine.uuid, %{cutting.uuid => 60})
+
+      assert {:ok, :synced} =
+               Machines.sync_machine_operations(machine.uuid, %{cutting.uuid => 90})
+
+      assert Machines.linked_operation_overrides(machine.uuid) == %{cutting.uuid => 90}
+    end
+
+    test "an unchanged sync (same keys and same override values) is a no-op", %{
+      machine: machine,
+      cutting: cutting
+    } do
+      {:ok, :synced} = Machines.sync_machine_operations(machine.uuid, %{cutting.uuid => 90})
+
+      assert {:ok, :unchanged} =
+               Machines.sync_machine_operations(machine.uuid, %{cutting.uuid => 90})
+    end
+
+    test "syncing to an empty map clears all links", %{machine: machine, cutting: cutting} do
+      {:ok, :synced} = Machines.sync_machine_operations(machine.uuid, %{cutting.uuid => nil})
+      assert {:ok, :synced} = Machines.sync_machine_operations(machine.uuid, %{})
+      assert Machines.linked_operation_overrides(machine.uuid) == %{}
+    end
+
+    test "deleting an operation removes its machine links", %{machine: machine, cutting: cutting} do
+      {:ok, :synced} = Machines.sync_machine_operations(machine.uuid, %{cutting.uuid => nil})
+      {:ok, _} = Operations.delete_operation(cutting)
+      assert Machines.linked_operation_overrides(machine.uuid) == %{}
     end
   end
 

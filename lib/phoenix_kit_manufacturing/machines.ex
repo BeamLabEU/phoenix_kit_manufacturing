@@ -36,7 +36,14 @@ defmodule PhoenixKitManufacturing.Machines do
 
   alias PhoenixKit.Utils.Multilang
   alias PhoenixKitLocations.{Locations, Spaces}
-  alias PhoenixKitManufacturing.Schemas.{Machine, MachineType, MachineTypeAssignment}
+
+  alias PhoenixKitManufacturing.Schemas.{
+    Machine,
+    MachineOperation,
+    MachineType,
+    MachineTypeAssignment,
+    Operation
+  }
 
   @module_key "manufacturing"
 
@@ -298,6 +305,151 @@ defmodule PhoenixKitManufacturing.Machines do
     query =
       from(a in MachineTypeAssignment,
         where: a.machine_uuid == ^machine_uuid and a.machine_type_uuid == ^type_uuid,
+        select: true
+      )
+
+    repo().one(query) == true
+  end
+
+  # ═══════════════════════════════════════════════════════════════════
+  # Machine ↔ Operation linking (many-to-many, with a per-machine time-norm
+  # override — see `Schemas.MachineOperation`)
+  # ═══════════════════════════════════════════════════════════════════
+
+  @doc """
+  Lists the operations linked to a machine, each paired with its
+  per-machine time-norm override.
+
+  Returns `%{operation: Operation.t(), time_norm_seconds: integer() | nil}`
+  maps, ordered by the linked operation's name. `time_norm_seconds` is the
+  raw `MachineOperation` override as stored — `nil` means "no override,
+  use the operation's own `base_time_norm_seconds`"; resolving that
+  fallback is left to the caller (this function doesn't look at
+  `operation.base_time_norm_seconds` itself).
+  """
+  @spec list_machine_operations(String.t()) :: [
+          %{operation: Operation.t(), time_norm_seconds: integer() | nil}
+        ]
+  def list_machine_operations(machine_uuid) do
+    from(mo in MachineOperation,
+      join: o in assoc(mo, :operation),
+      where: mo.machine_uuid == ^machine_uuid,
+      order_by: [asc: o.name],
+      preload: [operation: o]
+    )
+    |> repo().all()
+    |> Enum.map(&%{operation: &1.operation, time_norm_seconds: &1.time_norm_seconds})
+  end
+
+  @doc """
+  Returns a `%{operation_uuid => time_norm_seconds}` map of a machine's
+  current operation links, for initializing the operations section of the
+  machine form.
+
+  The map's *keys* are the full linked-operation set — every linked
+  operation appears, whether or not it carries an override — which is
+  exactly the shape `sync_machine_operations/3` needs for its "before"
+  side of the diff.
+  """
+  @spec linked_operation_overrides(String.t()) :: %{String.t() => integer() | nil}
+  def linked_operation_overrides(machine_uuid) do
+    from(mo in MachineOperation,
+      where: mo.machine_uuid == ^machine_uuid,
+      select: {mo.operation_uuid, mo.time_norm_seconds}
+    )
+    |> repo().all()
+    |> Map.new()
+  end
+
+  @doc """
+  Syncs the operation links for a machine (full replace).
+
+  `overrides_map` is a `%{operation_uuid => time_norm_seconds | nil}` map:
+  its key set is the full desired list of linked operations, and each
+  value is that operation's per-machine norm override (`nil` ⇒ no
+  override, fall back to the operation's own `base_time_norm_seconds`).
+
+  Unlike `sync_machine_types/3` (which only needs to compare a *set* of
+  linked UUIDs), this compares the whole map with `Map.equal?/2` against
+  `linked_operation_overrides/1` — same key set *and* same values. An
+  unchanged set of linked operations with a changed override is still a
+  real sync, not a no-op, because the override value is data the caller
+  asked to persist.
+
+  Replaces all existing links with the given map, wrapped in a transaction
+  for atomicity. Logs `machine.operations_synced` only when something
+  actually changed; a no-op sync is silent.
+  """
+  @spec sync_machine_operations(String.t(), %{String.t() => integer() | nil}, opts) ::
+          {:ok, :synced | :unchanged} | {:error, :operation_assignment_failed}
+  def sync_machine_operations(machine_uuid, overrides_map, opts \\ [])
+      when is_map(overrides_map) do
+    before_map = linked_operation_overrides(machine_uuid)
+
+    if Map.equal?(before_map, overrides_map) do
+      {:ok, :unchanged}
+    else
+      result =
+        repo().transaction(fn ->
+          from(mo in MachineOperation, where: mo.machine_uuid == ^machine_uuid)
+          |> repo().delete_all()
+
+          now = DateTime.utc_now() |> DateTime.truncate(:second)
+          Enum.each(overrides_map, &insert_operation_link!(machine_uuid, &1, now))
+          :synced
+        end)
+
+      case result do
+        {:ok, :synced} ->
+          maybe_log_activity("machine.operations_synced", "machine", machine_uuid, opts, %{
+            "operations_from" => before_map,
+            "operations_to" => overrides_map
+          })
+
+          {:ok, :synced}
+
+        {:error, reason} ->
+          maybe_log_activity("machine.operations_synced", "machine", machine_uuid, opts, %{
+            "db_pending" => true,
+            "reason" => inspect(reason),
+            "operations_from" => before_map,
+            "operations_to" => overrides_map
+          })
+
+          {:error, reason}
+      end
+    end
+  end
+
+  defp insert_operation_link!(machine_uuid, {operation_uuid, time_norm_seconds}, now) do
+    changeset =
+      MachineOperation.changeset(%MachineOperation{}, %{
+        machine_uuid: machine_uuid,
+        operation_uuid: operation_uuid,
+        time_norm_seconds: time_norm_seconds,
+        inserted_at: now,
+        updated_at: now
+      })
+
+    case repo().insert(changeset) do
+      {:ok, _} ->
+        :ok
+
+      {:error, %Ecto.Changeset{} = cs} ->
+        Logger.error(
+          "Failed to link operation #{operation_uuid} to machine #{machine_uuid} (error count: #{length(cs.errors)})"
+        )
+
+        repo().rollback(:operation_assignment_failed)
+    end
+  end
+
+  @doc "Returns true if the machine has the given operation linked."
+  @spec has_operation?(String.t(), String.t()) :: boolean()
+  def has_operation?(machine_uuid, operation_uuid) do
+    query =
+      from(mo in MachineOperation,
+        where: mo.machine_uuid == ^machine_uuid and mo.operation_uuid == ^operation_uuid,
         select: true
       )
 
