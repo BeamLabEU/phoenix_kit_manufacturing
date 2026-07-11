@@ -32,7 +32,8 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
        page_title: gettext("Machines"),
        machines: [],
        machine_types: [],
-       confirm_delete: nil
+       confirm_delete: nil,
+       locale: socket.assigns[:current_locale] || Gettext.get_locale()
      )}
   end
 
@@ -198,7 +199,7 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
       </.admin_page_header>
 
       <div :if={@active_tab == :index}>
-        <.machines_table machines={@machines} />
+        <.machines_table machines={@machines} locale={@locale} />
       </div>
 
       <div :if={@active_tab == :types}>
@@ -250,6 +251,10 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
             [
               %{label: gettext("Code"), value: m.code || "—"},
               %{label: gettext("Types"), value: type_names(m)},
+              %{
+                label: gettext("Location"),
+                value: Machines.location_label(m, locale: @locale) || "—"
+              },
               %{label: gettext("Status"), value: status_label(m.status)}
             ]
           end
@@ -261,6 +266,7 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
             <.table_default_header_cell>{gettext("Code")}</.table_default_header_cell>
             <.table_default_header_cell>{gettext("Manufacturer")}</.table_default_header_cell>
             <.table_default_header_cell>{gettext("Types")}</.table_default_header_cell>
+            <.table_default_header_cell>{gettext("Location")}</.table_default_header_cell>
             <.table_default_header_cell>{gettext("Status")}</.table_default_header_cell>
             <.table_default_header_cell class="text-right whitespace-nowrap">
               {gettext("Actions")}
@@ -287,6 +293,9 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
                 </span>
               </div>
               <span :if={machine.machine_types == []} class="text-base-content/40">—</span>
+            </.table_default_cell>
+            <.table_default_cell class="text-sm text-base-content/60">
+              {Machines.location_label(machine, locale: @locale) || "—"}
             </.table_default_cell>
             <.table_default_cell>
               <span class={["badge badge-sm", status_badge_class(machine.status)]}>
@@ -437,11 +446,17 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
   defp status_label("active"), do: gettext("Active")
   defp status_label("inactive"), do: gettext("Inactive")
   defp status_label("maintenance"), do: gettext("Maintenance")
+  defp status_label("repair"), do: gettext("Repair")
+  defp status_label("mothballed"), do: gettext("Mothballed")
   defp status_label("decommissioned"), do: gettext("Decommissioned")
   defp status_label(other), do: other
 
   defp status_badge_class("active"), do: "badge-success"
   defp status_badge_class("maintenance"), do: "badge-warning"
+  # Distinct from "maintenance" (badge-warning) — a machine actively down
+  # for repair reads as more urgent than a scheduled maintenance window.
+  defp status_badge_class("repair"), do: "badge-error"
+  defp status_badge_class("mothballed"), do: "badge-ghost badge-outline"
   defp status_badge_class("decommissioned"), do: "badge-error badge-outline"
   defp status_badge_class(_), do: "badge-ghost"
 end

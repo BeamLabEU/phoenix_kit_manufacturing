@@ -24,6 +24,26 @@ defmodule PhoenixKitManufacturing.Web.MachinesLiveTest do
       {:ok, _view, html} = live(conn, "/en/admin/manufacturing/machines")
       assert html =~ "CNC-01"
     end
+
+    test "the repair and mothballed statuses render their labels", %{conn: conn} do
+      {:ok, _m1} = Machines.create_machine(%{name: "Press-02", status: "repair"})
+      {:ok, _m2} = Machines.create_machine(%{name: "Old Lathe", status: "mothballed"})
+      conn = put_test_scope(conn, fake_scope())
+      {:ok, _view, html} = live(conn, "/en/admin/manufacturing/machines")
+
+      assert html =~ "Repair"
+      assert html =~ "Mothballed"
+    end
+
+    test "a machine's location note appears in the Location column", %{conn: conn} do
+      {:ok, _m} =
+        Machines.create_machine(%{name: "Router-03", location_note: "Shop Floor A"})
+
+      conn = put_test_scope(conn, fake_scope())
+      {:ok, _view, html} = live(conn, "/en/admin/manufacturing/machines")
+
+      assert html =~ "Shop Floor A"
+    end
   end
 
   describe "machine form" do
