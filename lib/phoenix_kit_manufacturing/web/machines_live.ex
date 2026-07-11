@@ -23,6 +23,8 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
   import PhoenixKitWeb.Components.Core.TableDefault
   import PhoenixKitWeb.Components.Core.TableRowMenu
 
+  alias PhoenixKit.Modules.Storage
+  alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKitManufacturing.{Errors, Machines, Paths}
 
   @impl true
@@ -276,9 +278,15 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
         <.table_default_body>
           <.table_default_row :for={machine <- @machines}>
             <.table_default_cell>
-              <.link navigate={Paths.machine_edit(machine.uuid)} class="link link-hover font-medium">
-                {machine.name}
-              </.link>
+              <div class="flex items-center gap-2 min-w-0">
+                <.machine_thumbnail machine={machine} />
+                <.link
+                  navigate={Paths.machine_edit(machine.uuid)}
+                  class="link link-hover font-medium"
+                >
+                  {machine.name}
+                </.link>
+              </div>
             </.table_default_cell>
             <.table_default_cell class="text-sm text-base-content/60">
               {machine.code || "—"}
@@ -323,9 +331,15 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
           </.table_default_row>
         </.table_default_body>
         <:card_header :let={machine}>
-          <.link navigate={Paths.machine_edit(machine.uuid)} class="font-medium text-sm link link-hover">
-            {machine.name}
-          </.link>
+          <div class="flex items-center gap-2 min-w-0">
+            <.machine_thumbnail machine={machine} />
+            <.link
+              navigate={Paths.machine_edit(machine.uuid)}
+              class="font-medium text-sm link link-hover truncate min-w-0"
+            >
+              {machine.name}
+            </.link>
+          </div>
         </:card_header>
         <:card_actions :let={machine}>
           <.link navigate={Paths.machine_edit(machine.uuid)} class="btn btn-ghost btn-xs">
@@ -442,6 +456,56 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
   end
 
   defp type_names(_), do: "—"
+
+  # Resolves the Storage file backing a machine's featured image (set via
+  # the Files section on MachineFormLive — stored at
+  # `machine.data["featured_image_uuid"]`, see `PhoenixKitManufacturing.Attachments`).
+  # Accepts anything carrying a `:data` map — the `%Machine{}` struct today,
+  # and (once `:index` is rewritten onto ColumnConfig) any enriched flat map
+  # that keeps a `:data` key — so this resolution logic only needs writing
+  # once. See dev_docs/IMPLEMENTATION_PLAN.md M13/M17.
+  defp featured_thumbnail_file(%{data: data}) when is_map(data) do
+    with uuid when is_binary(uuid) and uuid != "" <- Map.get(data, "featured_image_uuid"),
+         %Storage.File{} = file <- safe_get_file(uuid) do
+      file
+    else
+      _ -> nil
+    end
+  end
+
+  defp featured_thumbnail_file(_), do: nil
+
+  defp safe_get_file(uuid) do
+    Storage.get_file(uuid)
+  rescue
+    error ->
+      Logger.warning("Failed to load Storage file #{uuid}: #{inspect(error)}")
+      nil
+  end
+
+  # Small avatar-style thumbnail rendered next to a machine's name in the
+  # table's first column and in the mobile card header. Falls back to a
+  # placeholder icon when no featured image is set (or it fails to resolve).
+  defp machine_thumbnail(assigns) do
+    assigns = assign(assigns, :file, featured_thumbnail_file(assigns.machine))
+
+    ~H"""
+    <div class={["avatar shrink-0", @file == nil && "avatar-placeholder"]}>
+      <div class={[
+        "w-8 h-8 rounded-full",
+        if(@file, do: "overflow-hidden", else: "bg-base-200 flex items-center justify-center")
+      ]}>
+        <img
+          :if={@file}
+          src={URLSigner.signed_url(@file.uuid, "thumbnail")}
+          alt=""
+          class="w-full h-full object-cover"
+        />
+        <.icon :if={@file == nil} name="hero-camera" class="w-4 h-4 text-base-content/40" />
+      </div>
+    </div>
+    """
+  end
 
   defp status_label("active"), do: gettext("Active")
   defp status_label("inactive"), do: gettext("Inactive")
