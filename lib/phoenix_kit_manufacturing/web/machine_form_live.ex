@@ -526,7 +526,7 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
           phoenix_kit_current_user={assigns[:phoenix_kit_current_user]}
         />
 
-        <div class="max-w-3xl mx-auto w-full flex flex-col gap-6">
+        <div class="max-w-none mx-auto w-full flex flex-col gap-6">
           <%!-- Location — deliberately OUTSIDE the <.form> below. PlacePicker
                is a LiveComponent with its own search/tree inputs; nesting it
                inside <.form phx-change="validate"> would risk its native
@@ -552,7 +552,12 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
                   required
                 />
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <%!-- Passport: identifying/spec fields. One grid (not several
+                     paired 2-col ones) so the extra width freed up by the
+                     form no longer being capped at max-w-3xl gets used —
+                     up to 3 columns on large screens instead of fields
+                     stretching edge-to-edge in a 2-col row. --%>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <.input
                     field={@form[:code]}
                     type="text"
@@ -564,18 +569,12 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
                     type="text"
                     label={gettext("Manufacturer")}
                   />
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <.input field={@form[:model]} type="text" label={gettext("Model")} />
                   <.input
                     field={@form[:manufacture_year]}
                     type="number"
                     label={gettext("Manufacture year")}
                   />
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <.input
                     field={@form[:serial_number]}
                     type="text"
@@ -588,9 +587,6 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
                     label={gettext("Location (legacy note)")}
                     placeholder={gettext("Workshop / room / warehouse")}
                   />
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <.input
                     field={@form[:commissioned_on]}
                     type="date"
@@ -601,22 +597,18 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
                     type="date"
                     label={gettext("Warranty until")}
                   />
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <.input field={@form[:to_last_on]} type="date" label={gettext("Last maintenance")} />
                   <.input
                     field={@form[:to_interval_days]}
                     type="number"
                     label={gettext("Maintenance interval (days)")}
                   />
+                  <.input
+                    field={@form[:to_next_on]}
+                    type="date"
+                    label={gettext("Next maintenance due")}
+                  />
                 </div>
-
-                <.input
-                  field={@form[:to_next_on]}
-                  type="date"
-                  label={gettext("Next maintenance due")}
-                />
 
                 <.textarea
                   field={@form[:description]}
