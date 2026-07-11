@@ -34,6 +34,8 @@ defmodule PhoenixKitManufacturing.Machines do
 
   require Logger
 
+  alias PhoenixKit.Utils.Multilang
+  alias PhoenixKitLocations.{Locations, Spaces}
   alias PhoenixKitManufacturing.Schemas.{Machine, MachineType, MachineTypeAssignment}
 
   @module_key "manufacturing"
@@ -301,6 +303,134 @@ defmodule PhoenixKitManufacturing.Machines do
 
     repo().one(query) == true
   end
+
+  # ═══════════════════════════════════════════════════════════════════
+  # Passport helpers — soft location link, merged field_template
+  # ═══════════════════════════════════════════════════════════════════
+
+  @doc """
+  Resolves a human-readable location label for a machine, trying (in
+  order):
+
+    1. `space_uuid` — `PhoenixKitLocations.Spaces.full_path/2`, e.g.
+       `"Main Warehouse / Floor 2 / Rack 5"`.
+    2. `location_uuid` — the translated name of the `Location` itself (no
+       specific space picked).
+    3. `location_note` — legacy freeform text for machines that predate the
+       `location_uuid`/`space_uuid` link (see `Schemas.Machine`).
+    4. `nil` — no location data at all.
+
+  `phoenix_kit_locations` is a soft cross-module reference (no FK — see
+  `Schemas.Machine`'s moduledoc): a uuid pointing at data this call can't
+  reach (record deleted, table not migrated on this host, …) is treated as
+  "no answer" and falls through to the next step rather than raising, hence
+  the `rescue` around each cross-module read.
+
+  ## Options
+
+    * `:locale` — forwarded to `Spaces.full_path/2` / used to pick the
+      translated `Location` name, same `_name` -> `name` -> primary-name
+      fallback chain as `PhoenixKitLocations.Web.Components.PlacePicker`.
+      `nil` (default) always shows the primary-language name.
+  """
+  @spec location_label(Machine.t(), opts) :: String.t() | nil
+  def location_label(%Machine{} = machine, opts \\ []) do
+    locale = Keyword.get(opts, :locale)
+
+    space_label(machine.space_uuid, locale) ||
+      location_name(machine.location_uuid, locale) ||
+      blank_to_nil(machine.location_note)
+  end
+
+  defp space_label(space_uuid, locale) when is_binary(space_uuid) and space_uuid != "" do
+    space_uuid
+    |> Spaces.full_path(locale: locale)
+    |> blank_to_nil()
+  rescue
+    _ -> nil
+  end
+
+  defp space_label(_space_uuid, _locale), do: nil
+
+  defp location_name(location_uuid, locale)
+       when is_binary(location_uuid) and location_uuid != "" do
+    case Locations.get_location(location_uuid) do
+      nil -> nil
+      location -> translated_location_name(location, locale)
+    end
+  rescue
+    _ -> nil
+  end
+
+  defp location_name(_location_uuid, _locale), do: nil
+
+  defp translated_location_name(%{name: name}, nil), do: blank_to_nil(name)
+
+  defp translated_location_name(%{data: data, name: name}, locale) do
+    translation = Multilang.get_language_data(data, locale)
+    blank_to_nil(Map.get(translation, "_name") || Map.get(translation, "name") || name)
+  end
+
+  defp blank_to_nil(nil), do: nil
+  defp blank_to_nil(""), do: nil
+  defp blank_to_nil(value), do: value
+
+  @doc """
+  Merges the `field_template` rows of every active machine type in
+  `type_uuids` into a single ordered list, for rendering the dynamic
+  `metadata` inputs on the machine form.
+
+  `type_uuids` is expected to already be filtered down to "linked to this
+  machine" (e.g. `MapSet.to_list/1` of the toggled type badges on the
+  form) — this function does no linking lookup of its own, it only merges.
+
+  Types are read via `list_machine_types(status: "active")`, which orders
+  by `:name` — so the merge order (and therefore which type wins a key
+  collision) is alphabetical by type name, **not** the order of
+  `type_uuids`. When two linked types both define a `field_template` row
+  with the same `key`, the earliest type in that alphabetical order wins
+  and the later row is dropped silently — this is a deliberate "first
+  wins" merge, not an error (unlike a duplicate key *within* one type's own
+  template, which `MachineType.changeset/2` rejects at the source). Callers
+  rendering the merged template SHOULD hint which type a field came from
+  when a collision is possible (e.g. a "from <type name>" caption next to
+  the label) — this function only resolves the winner, it doesn't surface
+  which types lost.
+  """
+  @spec merged_field_template([String.t()]) :: [map()]
+  def merged_field_template(type_uuids) when is_list(type_uuids) do
+    wanted = MapSet.new(type_uuids)
+
+    {rows, _seen_keys} =
+      list_machine_types(status: "active")
+      |> Enum.filter(&MapSet.member?(wanted, &1.uuid))
+      |> Enum.reduce({[], MapSet.new()}, &merge_field_template_rows/2)
+
+    Enum.reverse(rows)
+  end
+
+  defp merge_field_template_rows(%MachineType{field_template: field_template}, acc) do
+    Enum.reduce(field_template, acc, &accumulate_field_template_row/2)
+  end
+
+  # "First wins": a row is only added if its key hasn't been contributed by
+  # an earlier (alphabetically, by type name) type already — see the
+  # `merged_field_template/1` doc for why collisions aren't an error.
+  defp accumulate_field_template_row(row, {rows, seen_keys}) do
+    key = field_template_row_key(row)
+
+    if MapSet.member?(seen_keys, key) do
+      {rows, seen_keys}
+    else
+      {[row | rows], MapSet.put(seen_keys, key)}
+    end
+  end
+
+  # `field_template` rows are string-keyed once round-tripped through the
+  # `field_template` JSONB column (the only source `merged_field_template/1`
+  # reads from), but tolerate atom keys too for parity with
+  # `Schemas.MachineType`'s own row accessor.
+  defp field_template_row_key(row) when is_map(row), do: Map.get(row, "key") || Map.get(row, :key)
 
   # ═══════════════════════════════════════════════════════════════════
   # Query helpers

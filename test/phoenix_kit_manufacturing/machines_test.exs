@@ -86,6 +86,138 @@ defmodule PhoenixKitManufacturing.MachinesTest do
     end
   end
 
+  describe "location_label/2" do
+    test "returns nil when nothing is set" do
+      {:ok, machine} = Machines.create_machine(%{name: "CNC-01"})
+      assert Machines.location_label(machine) == nil
+    end
+
+    test "falls back to the legacy location_note when no uuid link resolves" do
+      {:ok, machine} = Machines.create_machine(%{name: "CNC-01", location_note: "Bay 3"})
+      assert Machines.location_label(machine) == "Bay 3"
+    end
+
+    # phoenix_kit_locations is a soft cross-module reference: a uuid this
+    # test DB has no matching (or even migrated) data for must be treated
+    # as "no answer", not a crash — this exercises the `rescue`/`nil`
+    # fallback path documented on `location_label/2`, standing in for "the
+    # phoenix_kit_locations tables aren't present on this host" without
+    # needing a second module's fixtures wired into this test DB.
+    test "a location_uuid that resolves to nothing falls back to location_note" do
+      {:ok, machine} =
+        Machines.create_machine(%{
+          name: "CNC-01",
+          location_uuid: Ecto.UUID.generate(),
+          location_note: "Bay 3"
+        })
+
+      assert Machines.location_label(machine) == "Bay 3"
+    end
+
+    test "a space_uuid that resolves to nothing still falls through to location_note" do
+      {:ok, machine} =
+        Machines.create_machine(%{
+          name: "CNC-01",
+          space_uuid: Ecto.UUID.generate(),
+          location_uuid: Ecto.UUID.generate(),
+          location_note: "Bay 3"
+        })
+
+      assert Machines.location_label(machine) == "Bay 3"
+    end
+
+    test "unresolvable uuids and a blank location_note both yield nil" do
+      {:ok, machine} =
+        Machines.create_machine(%{
+          name: "CNC-01",
+          space_uuid: Ecto.UUID.generate(),
+          location_uuid: Ecto.UUID.generate(),
+          location_note: ""
+        })
+
+      assert Machines.location_label(machine) == nil
+    end
+
+    test "accepts a :locale option without raising" do
+      {:ok, machine} = Machines.create_machine(%{name: "CNC-01", location_note: "Bay 3"})
+      assert Machines.location_label(machine, locale: "et") == "Bay 3"
+    end
+  end
+
+  describe "merged_field_template/1" do
+    setup do
+      {:ok, alpha} =
+        Machines.create_machine_type(%{
+          name: "Alpha",
+          field_template: [
+            %{"key" => "power_kw", "label" => "Power (from Alpha)", "type" => "number"}
+          ]
+        })
+
+      {:ok, beta} =
+        Machines.create_machine_type(%{
+          name: "Beta",
+          field_template: [
+            %{"key" => "power_kw", "label" => "Power (from Beta)", "type" => "number"},
+            %{"key" => "weight_kg", "label" => "Weight", "type" => "number"}
+          ]
+        })
+
+      %{alpha: alpha, beta: beta}
+    end
+
+    test "returns [] for an empty list" do
+      assert Machines.merged_field_template([]) == []
+    end
+
+    test "returns a single type's own template untouched", %{beta: beta} do
+      assert [
+               %{"key" => "power_kw", "label" => "Power (from Beta)"},
+               %{"key" => "weight_kg", "label" => "Weight"}
+             ] = Machines.merged_field_template([beta.uuid])
+    end
+
+    test "on a key collision, the alphabetically-first type name wins", %{
+      alpha: alpha,
+      beta: beta
+    } do
+      merged = Machines.merged_field_template([alpha.uuid, beta.uuid])
+
+      assert [
+               %{"key" => "power_kw", "label" => "Power (from Alpha)"},
+               %{"key" => "weight_kg", "label" => "Weight"}
+             ] = merged
+    end
+
+    test "collision resolution does not depend on the input list order", %{
+      alpha: alpha,
+      beta: beta
+    } do
+      # Passing Beta before Alpha must not change the winner — merge order
+      # follows `list_machine_types/1`'s name ordering, not `type_uuids`.
+      merged = Machines.merged_field_template([beta.uuid, alpha.uuid])
+
+      assert [%{"key" => "power_kw", "label" => "Power (from Alpha)"} | _] = merged
+    end
+
+    test "ignores type uuids that aren't in the requested list", %{alpha: alpha} do
+      unrelated_uuid = Ecto.UUID.generate()
+      assert [%{"key" => "power_kw"}] = Machines.merged_field_template([alpha.uuid])
+      assert Machines.merged_field_template([unrelated_uuid]) == []
+    end
+
+    test "excludes inactive types (list_machine_types(status: \"active\") filter)" do
+      {:ok, inactive} =
+        Machines.create_machine_type(%{
+          name: "Gamma",
+          status: "inactive",
+          field_template: [%{"key" => "x", "label" => "X", "type" => "text"}]
+        })
+
+      assert Machines.merged_field_template([inactive.uuid]) == []
+    end
+  end
+
   describe "activity logging" do
     test "records machine.created with the actor and metadata" do
       actor = Ecto.UUID.generate()
