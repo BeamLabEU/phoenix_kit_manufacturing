@@ -18,9 +18,8 @@ msgstr ""
 
 #: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:68
 #: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:82
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:32
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:53
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:175
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:70
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:126
 #, elixir-autogen, elixir-format
 msgid "Machines"
 msgstr ""
@@ -36,36 +35,44 @@ msgstr ""
 msgid "Production Orders"
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:266
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:369
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:663
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1061
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1155
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1255
 #, elixir-autogen, elixir-format
 msgid "Actions"
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:172
-#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:221
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:437
+#: lib/phoenix_kit_manufacturing/column_config/machines.ex:168
+#: lib/phoenix_kit_manufacturing/web/defect_reason_form_live.ex:240
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:426
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:358
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1367
+#: lib/phoenix_kit_manufacturing/web/operation_form_live.ex:242
 #, elixir-autogen, elixir-format
 msgid "Active"
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:184
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:493
 #, elixir-autogen, elixir-format
 msgid "Add a machine to the reference book."
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/errors.ex:35
+#: lib/phoenix_kit_manufacturing/errors.ex:42
 #, elixir-autogen, elixir-format
 msgid "An unexpected error occurred."
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:208
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:345
 #, elixir-autogen, elixir-format
 msgid "Brief description of this machine type..."
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:280
-#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:232
+#: lib/phoenix_kit_manufacturing/web/components/column_modal.ex:186
+#: lib/phoenix_kit_manufacturing/web/defect_reason_form_live.ex:251
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:695
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:400
+#: lib/phoenix_kit_manufacturing/web/operation_form_live.ex:253
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr ""
@@ -75,108 +82,125 @@ msgstr ""
 msgid "Categories"
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:178
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:131
 #, elixir-autogen, elixir-format
 msgid "Categories used to tag machines."
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:251
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:619
 #, elixir-autogen, elixir-format
 msgid "Click to toggle. A machine can have multiple types."
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:205
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:251
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:261
+#: lib/phoenix_kit_manufacturing/column_config/machines.ex:40
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:528
 #, elixir-autogen, elixir-format
 msgid "Code"
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:286
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:704
 #, elixir-autogen, elixir-format
 msgid "Create Machine"
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:238
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:406
 #, elixir-autogen, elixir-format
 msgid "Create Type"
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:151
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:288
 #, elixir-autogen, elixir-format
 msgid "Create a new machine type for categorizing machines."
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:284
-#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:236
+#: lib/phoenix_kit_manufacturing/web/defect_reason_form_live.ex:255
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:700
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:404
+#: lib/phoenix_kit_manufacturing/web/operation_form_live.ex:257
 #, elixir-autogen, elixir-format
 msgid "Creating..."
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:174
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:440
+#: lib/phoenix_kit_manufacturing/column_config/machines.ex:172
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:430
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1372
 #, elixir-autogen, elixir-format
 msgid "Decommissioned"
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:215
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:226
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:309
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:331
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:401
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:423
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:640
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:701
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:740
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:751
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:762
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:773
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1093
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1115
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1190
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1212
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1287
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1309
 #, elixir-autogen, elixir-format
 msgid "Delete"
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:212
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:737
 #, elixir-autogen, elixir-format
 msgid "Delete Machine"
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:223
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:748
 #, elixir-autogen, elixir-format
 msgid "Delete Machine Type"
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:231
-#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:206
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:357
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:366
+#: lib/phoenix_kit_manufacturing/web/defect_reason_form_live.ex:225
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:592
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:343
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1049
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1058
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1243
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1252
 #, elixir-autogen, elixir-format
 msgid "Description"
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:301
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:323
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:393
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:415
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:632
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:693
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1085
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1107
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1182
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1204
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1279
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1301
 #, elixir-autogen, elixir-format
 msgid "Edit"
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:83
-#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:58
+#: lib/phoenix_kit_manufacturing/web/defect_reason_form_live.ex:73
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:191
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:83
+#: lib/phoenix_kit_manufacturing/web/operation_form_live.ex:80
 #, elixir-autogen, elixir-format
 msgid "Edit %{name}"
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/errors.ex:30
+#: lib/phoenix_kit_manufacturing/errors.ex:32
 #, elixir-autogen, elixir-format
 msgid "Failed to delete machine type."
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/errors.ex:29
+#: lib/phoenix_kit_manufacturing/errors.ex:31
 #, elixir-autogen, elixir-format
 msgid "Failed to delete machine."
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:69
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:151
 #, elixir-autogen, elixir-format
 msgid "Failed to load machine types."
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:61
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:143
 #, elixir-autogen, elixir-format
 msgid "Failed to load machines."
 msgstr ""
@@ -186,41 +210,43 @@ msgstr ""
 msgid "In the reference book"
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:221
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:438
+#: lib/phoenix_kit_manufacturing/web/defect_reason_form_live.ex:240
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:358
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1368
+#: lib/phoenix_kit_manufacturing/web/operation_form_live.ex:242
 #, elixir-autogen, elixir-format
 msgid "Inactive"
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:225
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:362
 #, elixir-autogen, elixir-format
 msgid "Inactive types won't appear in the machine type selection."
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:206
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:529
 #, elixir-autogen, elixir-format
 msgid "Inventory number, e.g. M-001"
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:224
+#: lib/phoenix_kit_manufacturing/column_config/machines.ex:65
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:747
 #, elixir-autogen, elixir-format
 msgid "Location"
 msgstr ""
 
 #: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:91
-#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:248
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:54
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:175
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:616
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:127
 #, elixir-autogen, elixir-format
 msgid "Machine Types"
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:124
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:314
 #, elixir-autogen, elixir-format
 msgid "Machine created."
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:149
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:449
 #, elixir-autogen, elixir-format
 msgid "Machine deleted."
 msgstr ""
@@ -230,12 +256,12 @@ msgstr ""
 msgid "Machine not found."
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:108
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:164
 #, elixir-autogen, elixir-format
 msgid "Machine type created."
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:150
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:450
 #, elixir-autogen, elixir-format
 msgid "Machine type deleted."
 msgstr ""
@@ -245,18 +271,19 @@ msgstr ""
 msgid "Machine type not found."
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:121
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:177
 #, elixir-autogen, elixir-format
 msgid "Machine type updated."
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:134
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:328
 #, elixir-autogen, elixir-format
 msgid "Machine updated."
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:173
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:439
+#: lib/phoenix_kit_manufacturing/column_config/machines.ex:169
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:427
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1369
 #, elixir-autogen, elixir-format
 msgid "Maintenance"
 msgstr ""
@@ -266,131 +293,691 @@ msgstr ""
 msgid "Manage your machines reference book. Production orders and warehouse integration are coming soon."
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:211
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:262
+#: lib/phoenix_kit_manufacturing/column_config/machines.ex:88
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:534
 #, elixir-autogen, elixir-format
 msgid "Manufacturer"
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:196
-#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:191
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:260
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:365
+#: lib/phoenix_kit_manufacturing/column_config/machines.ex:28
+#: lib/phoenix_kit_manufacturing/web/defect_reason_form_live.ex:210
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:519
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:328
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1057
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1150
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1251
+#: lib/phoenix_kit_manufacturing/web/operation_form_live.ex:210
 #, elixir-autogen, elixir-format
 msgid "Name"
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:82
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:188
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:190
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:489
 #, elixir-autogen, elixir-format
 msgid "New Machine"
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:57
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:82
 #, elixir-autogen, elixir-format
 msgid "New Machine Type"
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:195
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:496
 #, elixir-autogen, elixir-format
 msgid "New Type"
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:343
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1035
 #, elixir-autogen, elixir-format
 msgid "No machine types yet."
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:237
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:676
 #, elixir-autogen, elixir-format
 msgid "No machines yet."
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:233
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:594
 #, elixir-autogen, elixir-format
 msgid "Notes about this machine..."
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:179
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:134
 #, elixir-autogen, elixir-format
 msgid "Production equipment reference book."
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:286
-#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:238
+#: lib/phoenix_kit_manufacturing/web/defect_reason_form_live.ex:257
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:705
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:406
+#: lib/phoenix_kit_manufacturing/web/operation_form_live.ex:259
 #, elixir-autogen, elixir-format
 msgid "Save Changes"
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/errors.ex:33
+#: lib/phoenix_kit_manufacturing/errors.ex:37
 #, elixir-autogen, elixir-format
 msgid "Saved but failed to update type assignments."
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:284
-#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:236
+#: lib/phoenix_kit_manufacturing/web/defect_reason_form_live.ex:255
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:700
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:404
+#: lib/phoenix_kit_manufacturing/web/operation_form_live.ex:257
 #, elixir-autogen, elixir-format
 msgid "Saving..."
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:219
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:551
 #, elixir-autogen, elixir-format
 msgid "Serial number"
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:238
-#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:220
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:253
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:264
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:358
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:367
+#: lib/phoenix_kit_manufacturing/column_config/machines.ex:52
+#: lib/phoenix_kit_manufacturing/web/defect_reason_form_live.ex:239
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:606
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:357
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1050
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1059
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1143
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1153
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1244
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1253
+#: lib/phoenix_kit_manufacturing/web/operation_form_live.ex:241
 #, elixir-autogen, elixir-format
 msgid "Status"
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:225
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:750
 #, elixir-autogen, elixir-format
 msgid "This will permanently delete this machine type. Machines using it will lose the type association."
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:214
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:739
 #, elixir-autogen, elixir-format
 msgid "This will permanently delete this machine. This cannot be undone."
 msgstr ""
 
+#: lib/phoenix_kit_manufacturing/column_config/machines.ex:77
 #: lib/phoenix_kit_manufacturing/web/dashboard_live.ex:71
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:252
-#: lib/phoenix_kit_manufacturing/web/machines_live.ex:263
 #, elixir-autogen, elixir-format
 msgid "Types"
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/errors.ex:40
+#: lib/phoenix_kit_manufacturing/errors.ex:47
 #, elixir-autogen, elixir-format
 msgid "Unexpected error: %{reason}"
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:185
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:494
 #, elixir-autogen, elixir-format
 msgid "Update machine details."
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:152
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:289
 #, elixir-autogen, elixir-format
 msgid "Update machine type details."
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:225
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:558
 #, elixir-autogen, elixir-format
 msgid "Workshop / room / warehouse"
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:197
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:520
 #, elixir-autogen, elixir-format
 msgid "e.g., CNC Mill #3"
 msgstr ""
 
-#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:192
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:329
 #, elixir-autogen, elixir-format
 msgid "e.g., CNC, Milling, Press, Laser cutter"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:554
+#, elixir-autogen, elixir-format
+msgid "%{count} filters active"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:375
+#, elixir-autogen, elixir-format
+msgid "Add field"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/components/column_modal.ex:172
+#, elixir-autogen, elixir-format
+msgid "All columns selected"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:847
+#, elixir-autogen, elixir-format
+msgid "Any"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/components/column_modal.ex:180
+#, elixir-autogen, elixir-format
+msgid "Apply"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:597
+#, elixir-autogen, elixir-format
+msgid "Ascending"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/components/column_modal.ex:144
+#, elixir-autogen, elixir-format
+msgid "Available"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:860
+#, elixir-autogen, elixir-format
+msgid "Base"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1142
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1152
+#, elixir-autogen, elixir-format
+msgid "Base norm"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/operation_form_live.ex:231
+#, elixir-autogen, elixir-format
+msgid "Base time norm (seconds)"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:863
+#, elixir-autogen, elixir-format
+msgid "Base: %{seconds}s"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:265
+#, elixir-autogen, elixir-format
+msgid "Boolean"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/defect_reason_form_live.ex:227
+#, elixir-autogen, elixir-format
+msgid "Brief description of this defect reason..."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:750
+#, elixir-autogen, elixir-format
+msgid "Change"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/components/column_modal.ex:147
+#, elixir-autogen, elixir-format
+msgid "Click to add"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:615
+#, elixir-autogen, elixir-format
+msgid "Columns"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:725
+#, elixir-autogen, elixir-format
+msgid "Comments"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/column_config/machines.ex:124
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:566
+#, elixir-autogen, elixir-format
+msgid "Commissioned on"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:826
+#, elixir-autogen, elixir-format
+msgid "Contains..."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/defect_reason_form_live.ex:257
+#, elixir-autogen, elixir-format
+msgid "Create Defect Reason"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/operation_form_live.ex:259
+#, elixir-autogen, elixir-format
+msgid "Create Operation"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/defect_reason_form_live.ex:170
+#, elixir-autogen, elixir-format
+msgid "Create a new defect reason for the defect reasons directory."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/operation_form_live.ex:174
+#, elixir-autogen, elixir-format
+msgid "Create a new operation for the operations directory."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/components/column_modal.ex:60
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:612
+#, elixir-autogen, elixir-format
+msgid "Customize columns"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:264
+#, elixir-autogen, elixir-format
+msgid "Date"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/components/column_modal.ex:183
+#, elixir-autogen, elixir-format
+msgid "Defaults"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:129
+#, elixir-autogen, elixir-format
+msgid "Defect Reasons"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/defect_reason_form_live.ex:123
+#, elixir-autogen, elixir-format
+msgid "Defect reason created."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:452
+#, elixir-autogen, elixir-format
+msgid "Defect reason deleted."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/errors.ex:30
+#, elixir-autogen, elixir-format
+msgid "Defect reason not found."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/defect_reason_form_live.ex:140
+#, elixir-autogen, elixir-format
+msgid "Defect reason updated."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:770
+#, elixir-autogen, elixir-format
+msgid "Delete Defect Reason"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:759
+#, elixir-autogen, elixir-format
+msgid "Delete Operation"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:598
+#, elixir-autogen, elixir-format
+msgid "Descending"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/components/column_modal.ex:113
+#, elixir-autogen, elixir-format
+msgid "Disable filter"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/components/column_modal.ex:62
+#, elixir-autogen, elixir-format
+msgid "Drag selected columns to reorder, click an available column to add it. Toggle the funnel icon on a column to enable per-column filtering."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/components/column_modal.ex:78
+#, elixir-autogen, elixir-format
+msgid "Drag to reorder"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/components/column_modal.ex:114
+#, elixir-autogen, elixir-format
+msgid "Enable filter"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:379
+#, elixir-autogen, elixir-format
+msgid "Extra fields rendered on the machine form for machines linked to this type."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/errors.ex:34
+#, elixir-autogen, elixir-format
+msgid "Failed to delete defect reason."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/errors.ex:33
+#, elixir-autogen, elixir-format
+msgid "Failed to delete operation."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:167
+#, elixir-autogen, elixir-format
+msgid "Failed to load defect reasons."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:159
+#, elixir-autogen, elixir-format
+msgid "Failed to load operations."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:653
+#, elixir-autogen, elixir-format
+msgid "Fields defined by the selected machine types."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:750
+#, elixir-autogen, elixir-format
+msgid "Hide"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/defect_reason_form_live.ex:244
+#, elixir-autogen, elixir-format
+msgid "Inactive defect reasons won't appear in the defect reason selection."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/operation_form_live.ex:246
+#, elixir-autogen, elixir-format
+msgid "Inactive operations won't appear in the machine operation selection."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:599
+#, elixir-autogen, elixir-format
+msgid "Internal notes"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:428
+#, elixir-autogen, elixir-format
+msgid "Key"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:435
+#, elixir-autogen, elixir-format
+msgid "Label"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:576
+#, elixir-autogen, elixir-format
+msgid "Last maintenance"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:557
+#, elixir-autogen, elixir-format
+msgid "Location (legacy note)"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:580
+#, elixir-autogen, elixir-format
+msgid "Maintenance interval (days)"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/column_config/machines.ex:112
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:543
+#, elixir-autogen, elixir-format
+msgid "Manufacture year"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:882
+#, elixir-autogen, elixir-format
+msgid "Max"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:872
+#, elixir-autogen, elixir-format
+msgid "Min"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/column_config/machines.ex:100
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:539
+#, elixir-autogen, elixir-format
+msgid "Model"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/column_config/machines.ex:171
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:429
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1371
+#, elixir-autogen, elixir-format
+msgid "Mothballed"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/defect_reason_form_live.ex:72
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:510
+#, elixir-autogen, elixir-format
+msgid "New Defect Reason"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:503
+#: lib/phoenix_kit_manufacturing/web/operation_form_live.ex:79
+#, elixir-autogen, elixir-format
+msgid "New Operation"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/column_config/machines.ex:148
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:587
+#, elixir-autogen, elixir-format
+msgid "Next maintenance due"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/components/column_modal.ex:137
+#, elixir-autogen, elixir-format
+msgid "No columns selected"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1229
+#, elixir-autogen, elixir-format
+msgid "No defect reasons yet."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:383
+#, elixir-autogen, elixir-format
+msgid "No fields yet — click \"Add field\" to define one."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1127
+#, elixir-autogen, elixir-format
+msgid "No operations yet."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:440
+#, elixir-autogen, elixir-format
+msgid "Not set"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:601
+#, elixir-autogen, elixir-format
+msgid "Notes only visible to admins..."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:263
+#, elixir-autogen, elixir-format
+msgid "Number"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/operation_form_live.ex:131
+#, elixir-autogen, elixir-format
+msgid "Operation created."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:451
+#, elixir-autogen, elixir-format
+msgid "Operation deleted."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/errors.ex:29
+#, elixir-autogen, elixir-format
+msgid "Operation not found."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/operation_form_live.ex:144
+#, elixir-autogen, elixir-format
+msgid "Operation updated."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:666
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:128
+#, elixir-autogen, elixir-format
+msgid "Operations"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:132
+#, elixir-autogen, elixir-format
+msgid "Operations used in production routing."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:461
+#, elixir-autogen, elixir-format
+msgid "Options (comma-separated)"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:133
+#, elixir-autogen, elixir-format
+msgid "Reasons used to classify production defects."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/components/column_modal.ex:125
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:477
+#, elixir-autogen, elixir-format
+msgid "Remove"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/column_config/machines.ex:170
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:428
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1370
+#, elixir-autogen, elixir-format
+msgid "Repair"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:469
+#, elixir-autogen, elixir-format
+msgid "Required"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:559
+#, elixir-autogen, elixir-format
+msgid "Reset"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/errors.ex:40
+#, elixir-autogen, elixir-format
+msgid "Saved but failed to update operation assignments."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:542
+#, elixir-autogen, elixir-format
+msgid "Search..."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:266
+#, elixir-autogen, elixir-format
+msgid "Select"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/components/column_modal.ex:75
+#, elixir-autogen, elixir-format
+msgid "Selected"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:580
+#, elixir-autogen, elixir-format
+msgid "Sort by:"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:372
+#, elixir-autogen, elixir-format
+msgid "Specification Fields"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:650
+#, elixir-autogen, elixir-format
+msgid "Specifications"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:262
+#, elixir-autogen, elixir-format
+msgid "Text"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:772
+#, elixir-autogen, elixir-format
+msgid "This will permanently delete this defect reason. This cannot be undone."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:761
+#, elixir-autogen, elixir-format
+msgid "This will permanently delete this operation. Machines using it will lose the link."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:669
+#, elixir-autogen, elixir-format
+msgid "Toggle the operations this machine performs. Override the time norm for this machine, or leave it blank to use the operation's base norm."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:444
+#, elixir-autogen, elixir-format
+msgid "Type"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:451
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1141
+#: lib/phoenix_kit_manufacturing/web/machines_live.ex:1151
+#: lib/phoenix_kit_manufacturing/web/operation_form_live.ex:225
+#, elixir-autogen, elixir-format
+msgid "Unit"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/defect_reason_form_live.ex:171
+#, elixir-autogen, elixir-format
+msgid "Update defect reason details."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/operation_form_live.ex:175
+#, elixir-autogen, elixir-format
+msgid "Update operation details."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:703
+#, elixir-autogen, elixir-format
+msgid "Waiting for uploads..."
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/column_config/machines.ex:136
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:571
+#, elixir-autogen, elixir-format
+msgid "Warranty until"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:857
+#, elixir-autogen, elixir-format
+msgid "base %{seconds}s"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:462
+#, elixir-autogen, elixir-format
+msgid "e.g., 110V, 220V"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/operation_form_live.ex:211
+#, elixir-autogen, elixir-format
+msgid "e.g., Cutting, Welding, Assembly"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:436
+#, elixir-autogen, elixir-format
+msgid "e.g., Power"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/defect_reason_form_live.ex:211
+#, elixir-autogen, elixir-format
+msgid "e.g., Scratched surface, Wrong dimensions, Missing part"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:429
+#, elixir-autogen, elixir-format
+msgid "e.g., power_kw"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/operation_form_live.ex:232
+#, elixir-autogen, elixir-format
+msgid "optional, e.g., 300"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/machine_type_form_live.ex:452
+#, elixir-autogen, elixir-format
+msgid "optional, e.g., kW"
+msgstr ""
+
+#: lib/phoenix_kit_manufacturing/web/operation_form_live.ex:226
+#, elixir-autogen, elixir-format
+msgid "optional, e.g., pcs, m, kg"
 msgstr ""
