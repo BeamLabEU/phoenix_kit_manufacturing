@@ -11,7 +11,7 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLiveTest do
   # message handling, and the new passport/dynamic-metadata fields.
   use PhoenixKitManufacturing.LiveCase
 
-  alias PhoenixKitManufacturing.Machines
+  alias PhoenixKitManufacturing.{Machines, Operations}
 
   defp new_path, do: "/en/admin/manufacturing/machines/new"
   defp edit_path(machine), do: "/en/admin/manufacturing/machines/#{machine.uuid}/edit"
@@ -258,6 +258,135 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLiveTest do
 
       assert [machine] = Machines.list_machines()
       assert machine.metadata["networked"] == false
+    end
+  end
+
+  describe "Operations section with no active operations" do
+    test "the section is hidden entirely", %{conn: conn} do
+      conn = put_test_scope(conn, fake_scope())
+      {:ok, _view, html} = live(conn, new_path())
+      refute html =~ "Toggle the operations this machine performs"
+    end
+  end
+
+  describe "Operations section" do
+    setup do
+      {:ok, operation} =
+        Operations.create_operation(%{
+          name: "Cutting",
+          unit: "pcs",
+          base_time_norm_seconds: 120
+        })
+
+      %{operation: operation}
+    end
+
+    test "renders every active operation, unchecked, with no override input", %{
+      conn: conn,
+      operation: operation
+    } do
+      conn = put_test_scope(conn, fake_scope())
+      {:ok, view, html} = live(conn, new_path())
+
+      assert html =~ "Cutting"
+      refute has_element?(view, "input[name='operation_override_#{operation.uuid}']")
+    end
+
+    test "toggle_operation shows the override input; toggling again hides it", %{
+      conn: conn,
+      operation: operation
+    } do
+      conn = put_test_scope(conn, fake_scope())
+      {:ok, view, _html} = live(conn, new_path())
+
+      render_click(view, "toggle_operation", %{"uuid" => operation.uuid})
+      assert has_element?(view, "input[name='operation_override_#{operation.uuid}']")
+
+      render_click(view, "toggle_operation", %{"uuid" => operation.uuid})
+      refute has_element?(view, "input[name='operation_override_#{operation.uuid}']")
+    end
+
+    test "linking an operation with no override persists a nil override on save", %{
+      conn: conn,
+      operation: operation
+    } do
+      conn = put_test_scope(conn, fake_scope())
+      {:ok, view, _html} = live(conn, new_path())
+
+      render_click(view, "toggle_operation", %{"uuid" => operation.uuid})
+
+      assert {:error, {:live_redirect, _}} =
+               view
+               |> form("form", machine: %{name: "CNC-30", status: "active"})
+               |> render_submit()
+
+      assert [machine] = Machines.list_machines()
+      assert Machines.linked_operation_overrides(machine.uuid) == %{operation.uuid => nil}
+    end
+
+    test "set_operation_override persists the override on save", %{
+      conn: conn,
+      operation: operation
+    } do
+      conn = put_test_scope(conn, fake_scope())
+      {:ok, view, _html} = live(conn, new_path())
+
+      render_click(view, "toggle_operation", %{"uuid" => operation.uuid})
+      render_click(view, "set_operation_override", %{"uuid" => operation.uuid, "value" => "45"})
+
+      assert {:error, {:live_redirect, _}} =
+               view
+               |> form("form", machine: %{name: "CNC-31", status: "active"})
+               |> render_submit()
+
+      assert [machine] = Machines.list_machines()
+      assert Machines.linked_operation_overrides(machine.uuid) == %{operation.uuid => 45}
+    end
+
+    test "a blank override value clears back to nil (use the operation's base norm)", %{
+      conn: conn,
+      operation: operation
+    } do
+      conn = put_test_scope(conn, fake_scope())
+      {:ok, view, _html} = live(conn, new_path())
+
+      render_click(view, "toggle_operation", %{"uuid" => operation.uuid})
+      render_click(view, "set_operation_override", %{"uuid" => operation.uuid, "value" => "45"})
+      render_click(view, "set_operation_override", %{"uuid" => operation.uuid, "value" => ""})
+
+      assert {:error, {:live_redirect, _}} =
+               view
+               |> form("form", machine: %{name: "CNC-32", status: "active"})
+               |> render_submit()
+
+      assert [machine] = Machines.list_machines()
+      assert Machines.linked_operation_overrides(machine.uuid) == %{operation.uuid => nil}
+    end
+
+    test "a stray set_operation_override for an unlinked operation is a no-op", %{
+      conn: conn,
+      operation: operation
+    } do
+      conn = put_test_scope(conn, fake_scope())
+      {:ok, view, _html} = live(conn, new_path())
+
+      render_click(view, "set_operation_override", %{"uuid" => operation.uuid, "value" => "45"})
+
+      assigns = :sys.get_state(view.pid).socket.assigns
+      refute Map.has_key?(assigns.operation_overrides, operation.uuid)
+    end
+
+    test "editing an existing machine preloads its linked operations and overrides", %{
+      conn: conn,
+      operation: operation
+    } do
+      {:ok, machine} = Machines.create_machine(%{name: "CNC-33"})
+      {:ok, _} = Machines.sync_machine_operations(machine.uuid, %{operation.uuid => 60})
+
+      conn = put_test_scope(conn, fake_scope())
+      {:ok, view, _html} = live(conn, edit_path(machine))
+
+      assert has_element?(view, "input[name='operation_override_#{operation.uuid}'][value='60']")
     end
   end
 

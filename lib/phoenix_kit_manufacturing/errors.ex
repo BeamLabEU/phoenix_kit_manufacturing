@@ -34,6 +34,9 @@ defmodule PhoenixKitManufacturing.Errors do
   def message(:type_assignment_failed),
     do: gettext("Saved but failed to update type assignments.")
 
+  def message(:operation_assignment_failed),
+    do: gettext("Saved but failed to update operation assignments.")
+
   def message(:unexpected), do: gettext("An unexpected error occurred.")
 
   def message(reason) when is_binary(reason), do: reason

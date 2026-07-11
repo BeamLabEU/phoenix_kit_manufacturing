@@ -26,6 +26,25 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
   a freeform map keyed by whatever the linked types define, not a fixed
   changeset field). Recomputed whenever the type selection changes.
 
+  ## Operations
+
+  Every active `Operation` in the directory (see `PhoenixKitManufacturing.Operations`)
+  can be linked to this machine, each link optionally overriding the
+  operation's own `base_time_norm_seconds` for this machine specifically.
+  `@operation_overrides` is a `%{operation_uuid => time_norm_seconds | nil}`
+  map — its *key set* is exactly which operations are linked, the same
+  shape `Machines.linked_operation_overrides/1` returns and
+  `Machines.sync_machine_operations/3` takes as its desired "after" state,
+  so the form assign doubles as the sync payload with no translation step
+  (mirrors how `@linked_type_uuids` doubles as `sync_machine_types/3`'s
+  payload). `toggle_operation` adds/removes a key (`nil` override — "use
+  the operation's base norm" — until the user types one);
+  `set_operation_override` (fired on the override input's `phx-blur`, not
+  the enclosing `<.form>`'s `phx-change` — see that handler for why)
+  updates an existing key's value, guarded with `Map.replace/3` so a stray
+  blur event for a row the user has since unchecked can't silently
+  re-link it. Both links are synced together in `sync_and_redirect/3`.
+
   ## Files & featured image
 
   Wired through `PhoenixKitManufacturing.Attachments`, the same
@@ -67,8 +86,8 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
   import PhoenixKitManufacturing.Web.Components.FilesCard, only: [files_card_body: 1]
 
   alias PhoenixKitLocations.Web.Components.PlacePicker
-  alias PhoenixKitManufacturing.{Attachments, Comments, Errors, Machines, Paths}
-  alias PhoenixKitManufacturing.Schemas.Machine
+  alias PhoenixKitManufacturing.{Attachments, Comments, Errors, Machines, Operations, Paths}
+  alias PhoenixKitManufacturing.Schemas.{Machine, Operation}
   alias PhoenixKitManufacturing.Web.Components.CommentsPanel
 
   @statuses ~w(active maintenance repair mothballed decommissioned)
@@ -97,6 +116,8 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
            all_types: safe_list_types(),
            linked_type_uuids: MapSet.new(linked_type_uuids),
            merged_template: safe_merged_template(linked_type_uuids),
+           all_operations: safe_list_operations(),
+           operation_overrides: safe_operation_overrides(action, machine),
            locale: locale,
            location_uuid: machine.location_uuid,
            space_uuid: machine.space_uuid,
@@ -145,6 +166,27 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
       []
   end
 
+  defp safe_list_operations do
+    Operations.list_operations(status: "active")
+  rescue
+    error ->
+      Logger.error("Failed to load operations: #{inspect(error)}")
+      []
+  end
+
+  # A :new machine has no uuid yet, so there's nothing to look up — starts
+  # with no linked operations, same as `load_machine(:new, _)`'s `[]` of
+  # linked type uuids.
+  defp safe_operation_overrides(:new, _machine), do: %{}
+
+  defp safe_operation_overrides(:edit, machine) do
+    Machines.linked_operation_overrides(machine.uuid)
+  rescue
+    error ->
+      Logger.error("Failed to load linked operations for #{machine.uuid}: #{inspect(error)}")
+      %{}
+  end
+
   defp page_title(:new, _machine), do: gettext("New Machine")
   defp page_title(:edit, machine), do: gettext("Edit %{name}", name: machine.name)
 
@@ -174,6 +216,29 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
      socket
      |> assign(:linked_type_uuids, linked)
      |> assign(:merged_template, safe_merged_template(MapSet.to_list(linked)))}
+  end
+
+  def handle_event("toggle_operation", %{"uuid" => uuid}, socket) do
+    overrides = socket.assigns.operation_overrides
+
+    overrides =
+      if Map.has_key?(overrides, uuid),
+        do: Map.delete(overrides, uuid),
+        else: Map.put(overrides, uuid, nil)
+
+    {:noreply, assign(socket, :operation_overrides, overrides)}
+  end
+
+  # `phx-blur` on the override input itself (see `operation_row/1`), not the
+  # enclosing `<.form>`'s `phx-change="validate"` — a plain input dispatches
+  # its own `phx-*` bindings independently of the form's, so this never
+  # touches `@changeset`/`@form` at all, only `@operation_overrides`
+  # (mirrors `toggle_type`/`toggle_operation` living outside the changeset).
+  # `Map.replace/3` is a no-op if `uuid` isn't a linked key any more — a
+  # stray blur for a row the user has since unchecked shouldn't re-link it.
+  def handle_event("set_operation_override", %{"uuid" => uuid, "value" => value}, socket) do
+    {:noreply,
+     update(socket, :operation_overrides, &Map.replace(&1, uuid, parse_override(value)))}
   end
 
   def handle_event("toggle_place_picker", _params, socket) do
@@ -246,7 +311,7 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
         machine_folder = Attachments.state(socket, "machine").folder_uuid
         _ = Attachments.maybe_rename_pending_folder_for(machine_folder, machine)
 
-        sync_types_and_redirect(socket, machine.uuid, gettext("Machine created."))
+        sync_and_redirect(socket, machine.uuid, gettext("Machine created."))
 
       {:error, changeset} ->
         {:noreply, assign_form(socket, Map.put(changeset, :action, :validate))}
@@ -260,7 +325,7 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
            actor_opts(socket)
          ) do
       {:ok, machine} ->
-        sync_types_and_redirect(socket, machine.uuid, gettext("Machine updated."))
+        sync_and_redirect(socket, machine.uuid, gettext("Machine updated."))
 
       {:error, changeset} ->
         {:noreply, assign_form(socket, Map.put(changeset, :action, :validate))}
@@ -295,22 +360,54 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
     end)
   end
 
-  defp sync_types_and_redirect(socket, machine_uuid, message) do
+  # Blank/unparseable input ⇒ `nil` (falls back to the operation's own
+  # `base_time_norm_seconds`, see `Machines.sync_machine_operations/3`),
+  # same "empty means unset" convention as the rest of the passport's
+  # optional numeric fields. Only a *full* integer match counts — partial
+  # parses (stray trailing characters) are treated the same as blank rather
+  # than silently truncated.
+  defp parse_override(value) when is_binary(value) do
+    case String.trim(value) do
+      "" ->
+        nil
+
+      trimmed ->
+        case Integer.parse(trimmed) do
+          {int, ""} -> int
+          _ -> nil
+        end
+    end
+  end
+
+  defp parse_override(_value), do: nil
+
+  # Syncs both linked-resource sets (types, then operations) after a
+  # successful create/update, then redirects to the machines list — one
+  # combined flow rather than two chained sync-and-redirect steps, so a
+  # save only ever does a single navigate. Each sync function returns its
+  # own specific `:error` reason atom on failure
+  # (`:type_assignment_failed` / `:operation_assignment_failed`), which
+  # `Errors.message/1` already knows how to render, so the flash correctly
+  # names whichever side actually failed without this function needing to
+  # track that itself.
+  defp sync_and_redirect(socket, machine_uuid, message) do
+    opts = actor_opts(socket)
     type_uuids = MapSet.to_list(socket.assigns.linked_type_uuids)
+    operation_overrides = socket.assigns.operation_overrides
 
-    case Machines.sync_machine_types(machine_uuid, type_uuids, actor_opts(socket)) do
-      {:ok, _sync_state} ->
+    with {:ok, _} <- Machines.sync_machine_types(machine_uuid, type_uuids, opts),
+         {:ok, _} <- Machines.sync_machine_operations(machine_uuid, operation_overrides, opts) do
+      {:noreply,
+       socket
+       |> put_flash(:info, message)
+       |> push_navigate(to: Paths.machines())}
+    else
+      {:error, reason} ->
+        Logger.error("Failed to sync machine #{machine_uuid}: #{inspect(reason)}")
+
         {:noreply,
          socket
-         |> put_flash(:info, message)
-         |> push_navigate(to: Paths.machines())}
-
-      {:error, _} ->
-        Logger.error("Failed to sync machine types for #{machine_uuid}")
-
-        {:noreply,
-         socket
-         |> put_flash(:warning, Errors.message(:type_assignment_failed))
+         |> put_flash(:warning, Errors.message(reason))
          |> push_navigate(to: Paths.machines())}
     end
   end
@@ -561,6 +658,27 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
                 </div>
               </div>
 
+              <div :if={@all_operations != []} class="flex flex-col gap-3">
+                <div class="divider my-0"></div>
+
+                <div class="flex items-center gap-2">
+                  <.icon name="hero-clock" class="w-5 h-5 text-base-content/70" />
+                  <span class="font-medium">{gettext("Operations")}</span>
+                </div>
+                <p class="text-sm text-base-content/50 -mt-2">
+                  {gettext(
+                    "Toggle the operations this machine performs. Override the time norm for this machine, or leave it blank to use the operation's base norm."
+                  )}
+                </p>
+
+                <.operation_row
+                  :for={operation <- @all_operations}
+                  operation={operation}
+                  enabled?={Map.has_key?(@operation_overrides, operation.uuid)}
+                  override={Map.get(@operation_overrides, operation.uuid)}
+                />
+              </div>
+
               <div class="flex flex-col gap-4">
                 <div class="divider my-0"></div>
 
@@ -690,4 +808,61 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
     </div>
     """
   end
+
+  # One row per active operation: a checkbox toggling the link
+  # (`toggle_operation`, mirrors `toggle_type`) plus, only while linked, an
+  # override input (`set_operation_override`). Neither control is bound to
+  # `@form`/`@changeset` — both names below are synthetic, unbracketed
+  # strings purely so the required `<.checkbox>`/`<.input>` `name=` attr
+  # has *something* to render; the real state lives in
+  # `@operation_overrides` (see moduledoc) and is only ever read from
+  # `phx-value-uuid` + the dedicated event's own payload, never from a
+  # `"machine"`-params submit.
+  attr(:operation, Operation, required: true)
+  attr(:enabled?, :boolean, required: true)
+  attr(:override, :integer, default: nil)
+
+  defp operation_row(assigns) do
+    ~H"""
+    <div class="flex flex-wrap items-center gap-3">
+      <.checkbox
+        name={"operation_toggle_#{@operation.uuid}"}
+        checked={@enabled?}
+        label={operation_label(@operation)}
+        phx-click="toggle_operation"
+        phx-value-uuid={@operation.uuid}
+      />
+
+      <.input
+        :if={@enabled?}
+        type="number"
+        name={"operation_override_#{@operation.uuid}"}
+        value={@override}
+        placeholder={operation_override_placeholder(@operation)}
+        wrapper_class="w-36"
+        class="input-sm"
+        phx-blur="set_operation_override"
+        phx-value-uuid={@operation.uuid}
+      />
+    </div>
+    """
+  end
+
+  defp operation_label(%Operation{name: name, unit: unit, base_time_norm_seconds: base}) do
+    hint = Enum.reject([blank_to_nil(unit), operation_base_hint(base)], &is_nil/1)
+    if hint == [], do: name, else: "#{name} (#{Enum.join(hint, " · ")})"
+  end
+
+  defp operation_base_hint(nil), do: nil
+  defp operation_base_hint(seconds), do: gettext("base %{seconds}s", seconds: seconds)
+
+  defp operation_override_placeholder(%Operation{base_time_norm_seconds: nil}),
+    do: gettext("Base")
+
+  defp operation_override_placeholder(%Operation{base_time_norm_seconds: seconds}),
+    do: gettext("Base: %{seconds}s", seconds: seconds)
+
+  defp blank_to_nil(nil), do: nil
+  defp blank_to_nil(""), do: nil
+  defp blank_to_nil(value), do: value
 end
