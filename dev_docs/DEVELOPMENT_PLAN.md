@@ -144,3 +144,26 @@
 | 10. Меню | SHIPPED (Dashboard/Machines/Types 155-157) | + подтаб Operations |
 
 Принцип волны: **структура и стиль мейнтейнера — базис** (single-page card формы, его схемы/миграции расширяем V2, его конвенции UI), наши дополнения — поверх, PR в upstream по готовности.
+
+## Г. Entities migration (волна E, 2026-07-12)
+
+Дополнение к §В — статус строк 2-4 таблицы гэп-анализа изменился. «Типы
+станков», «Операции» и «Причины брака» реализованы (§Б.2-4 выполнены), но не
+как модуль-собственные схемы/контексты, а как справочники на базе
+`phoenix_kit_entities` (entity blueprints `machine_type`/`operation`/
+`defect_reason`, миграция V5) — по прецеденту андийских
+`Andi.Orders.StatusRegistry`/`SuborderTypes`. Полное обоснование и разбивка
+задач — `dev_docs/ENTITIES_MIGRATION_SPEC.md` и
+`dev_docs/IMPLEMENTATION_PLAN_E.md`. На практике:
+
+- Чтение/пикеры идут через `PhoenixKitManufacturing.EntitiesRegistry` (ETS
+  + PubSub-инвалидация), а не через модульные контексты `Operations`/
+  `DefectReasons` или CRUD-функции вида `Machines.create_machine_type/2` —
+  все они удалены волной E.
+- CRUD — generic entities admin UI (`/admin/entities/machine_type/data`,
+  `/admin/entities/operation/data`, `/admin/entities/defect_reason/data`),
+  не собственные LiveView-формы модуля (тоже удалены).
+- `field_template` (§Б.1/строка 1 выше) пережил перенос как
+  `metadata["field_template"]` на записи entity `machine_type` — generic
+  entities-форма не даёт UI для недекларируемых полей; мини-редактор
+  вынесен в отдельную задачу `E18`, вне generic entities CRUD.

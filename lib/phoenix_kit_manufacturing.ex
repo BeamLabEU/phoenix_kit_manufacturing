@@ -2,10 +2,14 @@ defmodule PhoenixKitManufacturing do
   @moduledoc """
   PhoenixKit module: manufacturing.
 
-  Provides a dashboard plus a **Machines reference book** — machines and
-  their (many-to-many) machine types, with full CRUD, activity logging and
-  multilang type labels. Production orders and warehouse integration are
-  planned in later milestones (see `dev_docs/DEVELOPMENT_PLAN.md`).
+  Provides a dashboard plus a **Machines reference book** — machines with
+  full CRUD and activity logging, plus many-to-many links to machine types
+  and operations. Machine types, operations, and defect reasons are
+  `phoenix_kit_entities`-backed directories (migration V5) rather than
+  module-owned CRUD — see `PhoenixKitManufacturing.EntitiesRegistry` and
+  `dev_docs/ENTITIES_MIGRATION_SPEC.md`. Production orders and warehouse
+  integration are planned in later milestones (see
+  `dev_docs/DEVELOPMENT_PLAN.md`).
 
   The module ships its own database tables via `migration_module/0`
   (`PhoenixKitManufacturing.Migrations.Machines`); the host applies them by

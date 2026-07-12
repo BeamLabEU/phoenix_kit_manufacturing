@@ -9,10 +9,14 @@ package that implements the `PhoenixKit.Module` behaviour and is
 auto-discovered by a host Phoenix app at startup. It has no endpoint,
 router, or Ecto repo of its own; it borrows the host's via `phoenix_kit`.
 
-Current scope (v0.2): a **Machines reference book** — machines and their
-many-to-many machine types, with full CRUD, activity logging, and multilang
-type labels. Production orders, warehouse integration, and dashboard widgets
-are planned — see `dev_docs/DEVELOPMENT_PLAN.md`.
+Current scope (v0.2): a **Machines reference book** — machines with full
+CRUD, activity logging, and many-to-many links to machine types and
+operations. Machine types, operations, and defect reasons are
+`phoenix_kit_entities`-backed directories (migration V5), not module-owned
+CRUD — see `PhoenixKitManufacturing.EntitiesRegistry` and
+`dev_docs/ENTITIES_MIGRATION_SPEC.md`. Production orders, warehouse
+integration, and dashboard widgets are planned — see
+`dev_docs/DEVELOPMENT_PLAN.md`.
 
 ## Common Commands
 
@@ -65,12 +69,13 @@ before. Implemented via `pk_dep/3` in `mix.exs` — never hand-edit a
 lib/phoenix_kit_manufacturing.ex              # PhoenixKit.Module implementation + admin_tabs
 lib/phoenix_kit_manufacturing/
   machines.ex                                 # Context: CRUD, type sync, activity logging
+  entities_registry.ex                        # ETS+PubSub cache over phoenix_kit_entities
   errors.ex                                   # error atom -> gettext message
   gettext.ex                                  # module Gettext backend (en/et/ru catalogs)
   paths.ex                                    # centralized path helpers
   migrations/machines.ex                      # versioned migration_module (own tables)
-  schemas/{machine,machine_type,machine_type_assignment}.ex
-  web/{dashboard,machines,machine_form,machine_type_form}_live.ex
+  schemas/{machine,machine_type_assignment,machine_operation}.ex
+  web/{dashboard,machines,machine_form}_live.ex
 ```
 
 ### Key conventions
@@ -92,9 +97,15 @@ lib/phoenix_kit_manufacturing/
 - **LiveViews** wrap context reads in `rescue` and carry a defensive
   `handle_info/2` catch-all logging at `:debug`, so a not-yet-migrated host
   degrades instead of 500-ing.
-- **Machine type** name/description are translatable via core
-  `PhoenixKitWeb.Components.MultilangForm` (stored in the `data` JSONB
-  column). Machine identifiers (name/code/…) use plain core inputs.
+- **Machine** identifiers (name/code/…) use plain core inputs; `Machine` is
+  the only reference-book schema still module-owned.
+- **`machine_type`/`operation`/`defect_reason`** live in
+  `phoenix_kit_entities` (migration V5, see
+  `dev_docs/ENTITIES_MIGRATION_SPEC.md`) — not module-owned CRUD. Reads and
+  form pickers go through `PhoenixKitManufacturing.EntitiesRegistry` (ETS
+  cache, invalidated via `PhoenixKitEntities.Events` PubSub); editing is the
+  generic entities admin UI (`/admin/entities/:slug/data`, e.g.
+  `/admin/entities/machine_type/data`), not a module-owned form.
 
 ### Database & migrations
 
@@ -106,9 +117,15 @@ first-party modules like `phoenix_kit_locations`. To add/alter tables: bump
 and update `migrated_version_runtime/1` if the probe table changes. Hosts
 apply changes with `mix phoenix_kit.update`.
 
-Tables: `phoenix_kit_machines`, `phoenix_kit_machine_types`,
-`phoenix_kit_machine_type_assignments` (join, unique on
-`(machine_uuid, machine_type_uuid)`, both FKs `ON DELETE CASCADE`).
+Tables: `phoenix_kit_machines`; `phoenix_kit_machine_type_assignments`
+(join, unique on `(machine_uuid, machine_type_uuid)`; `machine_uuid` is a
+real FK `ON DELETE CASCADE`, `machine_type_uuid` is a soft reference to
+`phoenix_kit_entity_data.uuid` as of V5 — FK dropped); `phoenix_kit_machine_operations`
+(join, unique on `(machine_uuid, operation_uuid)`, same real-FK/soft-reference
+split, plus an optional per-machine `time_norm_seconds` override).
+`phoenix_kit_machine_types`, `phoenix_kit_operations`, and
+`phoenix_kit_defect_reasons` no longer exist as of V5 — see "Key
+conventions" above.
 
 **Rollback is not supported as of V5**: `down/1` unconditionally raises.
 `machine_type`/`operation`/`defect_reason` data now lives in
