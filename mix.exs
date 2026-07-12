@@ -76,7 +76,10 @@ defmodule PhoenixKitManufacturing.MixProject do
 
   defp deps do
     [
-      pk_dep(:phoenix_kit, "~> 1.7.133"),
+      # The manufacturing DB tables ship in core migration V143, published
+      # in phoenix_kit 1.7.189 — TODO(maintainer): confirm exact patch
+      # version at publish time (upstream currently at 1.7.188).
+      pk_dep(:phoenix_kit, "~> 1.7 and >= 1.7.189"),
       pk_dep(:phoenix_kit_comments, "~> 0.2"),
       pk_dep(:phoenix_kit_entities, "~> 0.2.7"),
       # PlacePicker / Spaces.full_path are only on the local locations fork

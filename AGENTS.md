@@ -60,8 +60,8 @@ before. Implemented via `pk_dep/3` in `mix.exs` — never hand-edit a
    compile time from each tab's `live_view:` field.
 4. Enable state is the `manufacturing_enabled` boolean setting
    (`PhoenixKit.Settings`); permissions come from `permission_metadata/0`.
-5. Tables are applied by `mix phoenix_kit.update`, which discovers this
-   module's `migration_module/0` and runs it.
+5. Tables are created by PhoenixKit core (V143); this module ships no
+   migrations of its own.
 
 ### File layout
 
@@ -73,7 +73,6 @@ lib/phoenix_kit_manufacturing/
   errors.ex                                   # error atom -> gettext message
   gettext.ex                                  # module Gettext backend (en/et/ru catalogs)
   paths.ex                                    # centralized path helpers
-  migrations/machines.ex                      # versioned migration_module (own tables)
   schemas/{machine,machine_type_assignment,machine_operation}.ex
   web/{dashboard,machines,machine_form,machine_type_template}_live.ex
 ```
@@ -115,31 +114,39 @@ lib/phoenix_kit_manufacturing/
 
 ### Database & migrations
 
-This module ships its **own** tables through `migration_module/0`
-(`PhoenixKitManufacturing.Migrations.Machines`) — the standalone-package
-pattern (cf. `phoenix_kit_legal`), *not* the core-migration pattern used by
-first-party modules like `phoenix_kit_locations`. To add/alter tables: bump
-`@current_version`, extend `up/1` + `down/1` (idempotent, prefix-aware SQL),
-and update `migrated_version_runtime/1` if the probe table changes. Hosts
-apply changes with `mix phoenix_kit.update`.
+This module ships **no production migrations** — all runtime database
+tables (`phoenix_kit_machines`, `phoenix_kit_machine_type_assignments`,
+`phoenix_kit_machine_operations`) are created by the parent
+[phoenix_kit](https://github.com/BeamLabEU/phoenix_kit) project, migration
+`V143`. This module only defines Ecto schemas that map to those tables.
+For the full column/index list and the upgrade-path note for hosts running
+the previously-published `0.2.0` (module-owned schema V1), see that
+migration's moduledoc (`lib/phoenix_kit/migrations/postgres/v143.ex` in
+core); for hosts with real rows still sitting in the pre-V143
+`phoenix_kit_machine_types`/`phoenix_kit_operations`/
+`phoenix_kit_defect_reasons` directory tables, see
+`dev_docs/LEGACY_DATA_MIGRATION.md` in this repo.
 
-Tables: `phoenix_kit_machines`; `phoenix_kit_machine_type_assignments`
-(join, unique on `(machine_uuid, machine_type_uuid)`; `machine_uuid` is a
-real FK `ON DELETE CASCADE`, `machine_type_uuid` is a soft reference to
-`phoenix_kit_entity_data.uuid` as of V5 — FK dropped); `phoenix_kit_machine_operations`
-(join, unique on `(machine_uuid, operation_uuid)`, same real-FK/soft-reference
-split, plus an optional per-machine `time_norm_seconds` override).
-`phoenix_kit_machine_types`, `phoenix_kit_operations`, and
-`phoenix_kit_defect_reasons` no longer exist as of V5 — see "Key
-conventions" above.
+The `machine_type`/`operation`/`defect_reason` directories the module reads
+through `EntitiesRegistry` are **not** migration DDL either: the three
+blueprint entities backing them are provisioned by
+`PhoenixKitManufacturing.EntitiesRegistry.init/1` at boot — an idempotent
+get-or-create against `phoenix_kit_entities`, retried at the top of every
+reload until all three are confirmed present (see that module's own
+moduledoc for the mechanics).
 
-**Rollback is not supported as of V5**: `down/1` unconditionally raises.
-`machine_type`/`operation`/`defect_reason` data now lives in
-`phoenix_kit_entities` (a separate package this migration can't losslessly
-reverse-engineer a rollback for), so calling `down/1` blocks rollback of
-the *whole* module (V1 through V5, not just the V5 delta) — restoring a
-pre-V5 database backup is the only supported path. See the moduledoc's
-"## Rollback" section in `migrations/machines.ex` for the full rationale.
+The test suite builds its schema by running core's versioned migrations
+directly via `PhoenixKit.Migration.ensure_current/2` in
+`test/test_helper.exs` — no module-owned DDL. **Until phoenix_kit core
+publishes a Hex release containing V143**, that means integration tests
+need a local core checkout with V143 on it, not just the Hex pin:
+
+```bash
+PHOENIX_KIT_PATH=../phoenix_kit mix test
+```
+
+(see "Local cross-repo development" above; point it at a checkout of
+core's `core-v143-module-tables` branch, or its merged successor).
 
 ## Testing
 
@@ -149,8 +156,9 @@ Two-level suite (see `test/test_helper.exs`):
   run — no DB needed.
 - **Integration** tests are tagged `:integration` (via `DataCase` /
   `LiveCase`) and auto-excluded when PostgreSQL is unavailable. The helper
-  applies core migrations via `PhoenixKit.Migration.ensure_current/2` and
-  this module's `Migrations.Machines.up/1`, then uses `Ecto.Adapters.SQL.Sandbox`.
+  applies core migrations via `PhoenixKit.Migration.ensure_current/2` (the
+  module ships no migrations of its own — see "Database & migrations"
+  above), then uses `Ecto.Adapters.SQL.Sandbox`.
 
 Version-compliance: `test/phoenix_kit_manufacturing_test.exs` asserts
 `version/0` equals the current release. Keep it in sync (see below).
