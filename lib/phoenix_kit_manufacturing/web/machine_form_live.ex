@@ -642,7 +642,7 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
           phoenix_kit_current_user={assigns[:phoenix_kit_current_user]}
         />
 
-        <div class="max-w-none mx-auto w-full flex flex-col gap-6">
+        <div class="max-w-screen-2xl mx-auto w-full flex flex-col gap-6">
           <%!-- Tab navigation — only once the machine exists (has a uuid); a
                :new machine is a single-page General form with no tab bar at
                all yet (see the moduledoc's "Tabs" section). Operations is
@@ -650,6 +650,11 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
                show — same "hide if empty" rule the section itself applied
                inline before the move. --%>
           <div :if={@machine.uuid} class="tabs tabs-border">
+            <% files_count = length(Attachments.state(%{assigns: assigns}, "machine").files) %>
+            <%
+              comments_count =
+                if Comments.available?(), do: Comments.count(:machine, @machine.uuid), else: 0
+            %>
             <.link
               patch={Paths.machine_edit(@machine.uuid)}
               class={["tab", @active_tab == :general && "tab-active"]}
@@ -668,6 +673,7 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
               class={["tab", @active_tab == :files && "tab-active"]}
             >
               {gettext("Files")}
+              <span :if={files_count > 0} class="badge badge-xs badge-ghost">{files_count}</span>
             </.link>
             <.link
               :if={Comments.available?()}
@@ -675,6 +681,7 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
               class={["tab", @active_tab == :comments && "tab-active"]}
             >
               {gettext("Comments")}
+              <span :if={comments_count > 0} class="badge badge-xs badge-ghost">{comments_count}</span>
             </.link>
           </div>
 

@@ -311,7 +311,7 @@ defmodule PhoenixKitManufacturing.Web.MachineTypeFormLive do
       current_locale={assigns[:current_locale]}
     >
       <div class="flex flex-col w-full px-4 py-8 gap-6">
-        <div class="max-w-none mx-auto w-full">
+        <div class="max-w-screen-2xl mx-auto w-full">
           <.form for={@form} action="#" phx-change="validate" phx-submit="save">
             <div class="card bg-base-100 shadow-lg">
               <.multilang_tabs
