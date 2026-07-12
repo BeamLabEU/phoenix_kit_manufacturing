@@ -129,7 +129,13 @@ defmodule PhoenixKitManufacturing.Machines do
   # ═══════════════════════════════════════════════════════════════════
 
   @doc """
-  Lists all machines, ordered by name, with their types preloaded.
+  Lists all machines, ordered by name.
+
+  Does **not** preload linked machine types — `machine_type_uuid` is a
+  soft reference (see `Schemas.MachineTypeAssignment` moduledoc), not an
+  Ecto association, so there is nothing for `preload:` to resolve. Callers
+  that need type names for a batch of machines should use
+  `linked_type_uuids_by_machine/1`.
 
   ## Options
 
@@ -140,7 +146,7 @@ defmodule PhoenixKitManufacturing.Machines do
   def list_machines(opts \\ []) do
     query =
       Machine
-      |> from(order_by: [asc: :name], preload: [:machine_types])
+      |> from(order_by: [asc: :name])
       |> filter_status(opts)
 
     query =
@@ -159,14 +165,13 @@ defmodule PhoenixKitManufacturing.Machines do
     repo().all(query)
   end
 
-  @doc "Fetches a machine by UUID with types preloaded. Returns `nil` if not found."
+  @doc """
+  Fetches a machine by UUID. Returns `nil` if not found.
+
+  Does not preload linked machine types — see `list_machines/1` moduledoc.
+  """
   @spec get_machine(String.t()) :: Machine.t() | nil
-  def get_machine(uuid) do
-    case repo().get(Machine, uuid) do
-      nil -> nil
-      machine -> repo().preload(machine, :machine_types)
-    end
-  end
+  def get_machine(uuid), do: repo().get(Machine, uuid)
 
   @doc "Returns the total count of machines."
   @spec count_machines(status_filter) :: non_neg_integer()
@@ -227,6 +232,26 @@ defmodule PhoenixKitManufacturing.Machines do
       select: a.machine_type_uuid
     )
     |> repo().all()
+  end
+
+  @doc """
+  Batch-resolves linked machine-type UUIDs for a list of machines in a
+  single query, e.g. `%{machine_uuid => [type_uuid, ...]}`. Machines with
+  no linked types are absent from the result map (not present with `[]`).
+
+  Used in place of the `preload: :machine_types` removed when
+  `machine_type_uuid` became a soft reference (see
+  `Schemas.MachineTypeAssignment` moduledoc) — callers resolve type names
+  from the returned UUIDs themselves (e.g. `list_machine_types/1`).
+  """
+  @spec linked_type_uuids_by_machine([String.t()]) :: %{String.t() => [String.t()]}
+  def linked_type_uuids_by_machine(machine_uuids) when is_list(machine_uuids) do
+    from(a in MachineTypeAssignment,
+      where: a.machine_uuid in ^machine_uuids,
+      select: {a.machine_uuid, a.machine_type_uuid}
+    )
+    |> repo().all()
+    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
   end
 
   @doc """
@@ -331,14 +356,18 @@ defmodule PhoenixKitManufacturing.Machines do
           %{operation: Operation.t(), time_norm_seconds: integer() | nil}
         ]
   def list_machine_operations(machine_uuid) do
+    # `operation_uuid` is a soft reference (see `Schemas.MachineOperation`
+    # moduledoc), not an Ecto association — join explicitly on the uuid
+    # columns instead of `assoc(mo, :operation)`.
     from(mo in MachineOperation,
-      join: o in assoc(mo, :operation),
+      join: o in Operation,
+      on: o.uuid == mo.operation_uuid,
       where: mo.machine_uuid == ^machine_uuid,
       order_by: [asc: o.name],
-      preload: [operation: o]
+      select: {mo, o}
     )
     |> repo().all()
-    |> Enum.map(&%{operation: &1.operation, time_norm_seconds: &1.time_norm_seconds})
+    |> Enum.map(fn {mo, o} -> %{operation: o, time_norm_seconds: mo.time_norm_seconds} end)
   end
 
   @doc """

@@ -205,9 +205,16 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
   # either a raw `%Machine{}` or this flat map.
   defp enrich_machines(machines, locale) do
     location_by_uuid = location_labels(machines, locale)
+    type_uuids_by_machine = Machines.linked_type_uuids_by_machine(Enum.map(machines, & &1.uuid))
+    type_name_by_uuid = Map.new(Machines.list_machine_types(), &{&1.uuid, &1.name})
 
     Enum.map(machines, fn m ->
-      type_names = m.machine_types |> Enum.map(& &1.name) |> Enum.sort()
+      type_names =
+        type_uuids_by_machine
+        |> Map.get(m.uuid, [])
+        |> Enum.map(&Map.get(type_name_by_uuid, &1))
+        |> Enum.reject(&is_nil/1)
+        |> Enum.sort()
 
       %{
         uuid: m.uuid,

@@ -37,19 +37,43 @@ defmodule PhoenixKitManufacturing.MachinesTest do
   end
 
   describe "machines" do
-    test "create/list/count/get/update/delete round-trip with types preloaded" do
+    test "create/list/count/get/update/delete round-trip" do
       {:ok, machine} = Machines.create_machine(%{name: "CNC-01", code: "M-001"})
       assert machine.status == "active"
 
       assert Machines.count_machines() == 1
-      assert [%Machine{machine_types: []}] = Machines.list_machines()
-      assert %Machine{name: "CNC-01", machine_types: []} = Machines.get_machine(machine.uuid)
+      assert [%Machine{name: "CNC-01"}] = Machines.list_machines()
+      assert %Machine{name: "CNC-01"} = Machines.get_machine(machine.uuid)
 
       {:ok, updated} = Machines.update_machine(machine, %{status: "maintenance"})
       assert updated.status == "maintenance"
 
       {:ok, _} = Machines.delete_machine(machine)
       assert Machines.count_machines() == 0
+    end
+  end
+
+  describe "linked_type_uuids_by_machine/1" do
+    test "batches linked type uuids for several machines in one call" do
+      {:ok, m1} = Machines.create_machine(%{name: "CNC-01"})
+      {:ok, m2} = Machines.create_machine(%{name: "CNC-02"})
+      {:ok, m3} = Machines.create_machine(%{name: "CNC-03"})
+      {:ok, cnc} = Machines.create_machine_type(%{name: "CNC"})
+      {:ok, mill} = Machines.create_machine_type(%{name: "Milling"})
+
+      {:ok, :synced} = Machines.sync_machine_types(m1.uuid, [cnc.uuid, mill.uuid])
+      {:ok, :synced} = Machines.sync_machine_types(m2.uuid, [cnc.uuid])
+      # m3 is left with no linked types on purpose.
+
+      result = Machines.linked_type_uuids_by_machine([m1.uuid, m2.uuid, m3.uuid])
+
+      assert MapSet.new(Map.fetch!(result, m1.uuid)) == MapSet.new([cnc.uuid, mill.uuid])
+      assert Map.fetch!(result, m2.uuid) == [cnc.uuid]
+      refute Map.has_key?(result, m3.uuid)
+    end
+
+    test "returns an empty map for an empty input list" do
+      assert Machines.linked_type_uuids_by_machine([]) == %{}
     end
   end
 

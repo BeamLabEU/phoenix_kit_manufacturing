@@ -74,7 +74,7 @@ defmodule PhoenixKitManufacturing.Schemas.MachineOperationTest do
       assert changeset.valid?
     end
 
-    test "wires assoc_constraint on both associations" do
+    test "wires assoc_constraint on the machine association only" do
       changeset =
         MachineOperation.changeset(%MachineOperation{}, %{
           machine_uuid: Ecto.UUID.generate(),
@@ -83,7 +83,9 @@ defmodule PhoenixKitManufacturing.Schemas.MachineOperationTest do
 
       constraint_fields = Enum.map(changeset.constraints, & &1.field)
       assert :machine in constraint_fields
-      assert :operation in constraint_fields
+      # operation_uuid is a soft reference (phoenix_kit_entities), not an
+      # Ecto association — no assoc_constraint/2, no FK to violate.
+      refute :operation in constraint_fields
     end
   end
 end

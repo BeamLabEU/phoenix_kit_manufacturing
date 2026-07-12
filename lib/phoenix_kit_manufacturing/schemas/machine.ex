@@ -3,8 +3,13 @@ defmodule PhoenixKitManufacturing.Schemas.Machine do
   Schema for manufacturing machines (the machines reference book).
 
   A machine is a piece of production equipment: a CNC mill, a press, a
-  laser cutter, etc. Machines are categorized by many-to-many
-  `MachineType` links, so a single machine can carry several type tags.
+  laser cutter, etc. Machines are categorized by many-to-many machine
+  type links via `MachineTypeAssignment`, so a single machine can carry
+  several type tags. `MachineTypeAssignment.machine_type_uuid` is a soft
+  reference (no `belongs_to`/FK) — see that schema's moduledoc — so this
+  schema does not expose a `machine_types` association; resolving the
+  linked types for a machine goes through
+  `PhoenixKitManufacturing.Machines`/`EntitiesRegistry` instead.
 
   The passport columns (`model`, `manufacture_year`, `commissioned_on`,
   `warranty_until`, `to_last_on`, `to_interval_days`, `to_next_on`,
@@ -77,8 +82,6 @@ defmodule PhoenixKitManufacturing.Schemas.Machine do
       foreign_key: :machine_uuid,
       references: :uuid
     )
-
-    has_many(:machine_types, through: [:machine_type_assignments, :machine_type])
 
     timestamps(type: :utc_datetime)
   end
