@@ -166,4 +166,5 @@
 - `field_template` (§Б.1/строка 1 выше) пережил перенос как
   `metadata["field_template"]` на записи entity `machine_type` — generic
   entities-форма не даёт UI для недекларируемых полей; мини-редактор
-  вынесен в отдельную задачу `E18`, вне generic entities CRUD.
+  реализован задачей `E18` (`Web.MachineTypeTemplateLive`, скрытый роут
+  `manufacturing/machine-types/:uuid/template`), вне generic entities CRUD.

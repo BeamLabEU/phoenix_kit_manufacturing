@@ -75,7 +75,7 @@ lib/phoenix_kit_manufacturing/
   paths.ex                                    # centralized path helpers
   migrations/machines.ex                      # versioned migration_module (own tables)
   schemas/{machine,machine_type_assignment,machine_operation}.ex
-  web/{dashboard,machines,machine_form}_live.ex
+  web/{dashboard,machines,machine_form,machine_type_template}_live.ex
 ```
 
 ### Key conventions
@@ -105,7 +105,13 @@ lib/phoenix_kit_manufacturing/
   form pickers go through `PhoenixKitManufacturing.EntitiesRegistry` (ETS
   cache, invalidated via `PhoenixKitEntities.Events` PubSub); editing is the
   generic entities admin UI (`/admin/entities/:slug/data`, e.g.
-  `/admin/entities/machine_type/data`), not a module-owned form.
+  `/admin/entities/machine_type/data`), not a module-owned form. One
+  exception: `machine_type`'s `field_template` (rendered as dynamic
+  `metadata` inputs on the machine form) lives in
+  `metadata["field_template"]`, a column the generic entities form never
+  edits — `Web.MachineTypeTemplateLive` is a small hidden-route
+  (`visible: false`) mini-editor just for that field, reachable from a
+  pencil icon next to each type badge on the machine form.
 
 ### Database & migrations
 

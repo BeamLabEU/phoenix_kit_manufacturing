@@ -218,16 +218,18 @@ defmodule PhoenixKitManufacturingTest do
       assert Tab.matches_path?(machines_tab, "manufacturing/machines/#{uuid}/comments")
     end
 
-    test "the wildcard :uuid machine-comments route is the last tab" do
+    test "the wildcard :uuid machine-comments route is the last machine-card tab" do
       tabs = PhoenixKitManufacturing.admin_tabs()
-      last = List.last(tabs)
-      assert last.id == :manufacturing_machine_comments
-      assert last.path == "manufacturing/machines/:uuid/comments"
+      comments_index = Enum.find_index(tabs, &(&1.id == :manufacturing_machine_comments))
+      assert comments_index, "expected :manufacturing_machine_comments to be present"
+
+      comments = Enum.at(tabs, comments_index)
+      assert comments.path == "manufacturing/machines/:uuid/comments"
 
       # The other machine-card hidden tab routes (also :uuid-wildcard, see
       # Web.MachineFormLive's moduledoc "Tabs") must sit somewhere before
-      # the final tab too — same "wildcard routes last as a block" ordering
-      # convention as manufacturing_machine_edit itself.
+      # the final machine-card tab too — same "wildcard routes last as a
+      # block" ordering convention as manufacturing_machine_edit itself.
       for id <- [
             :manufacturing_machine_edit,
             :manufacturing_machine_operations,
@@ -235,8 +237,34 @@ defmodule PhoenixKitManufacturingTest do
           ] do
         index = Enum.find_index(tabs, &(&1.id == id))
         assert index, "expected #{id} to be present in admin_tabs/0"
-        assert index < length(tabs) - 1
+        assert index < comments_index
       end
+
+      # `:manufacturing_machine_type_template` is a *different* wildcard
+      # :uuid route on its own literal prefix
+      # (`manufacturing/machine-types/:uuid/template` — "machine-types",
+      # not "machines"), so it can never shadow any machine-card route
+      # regardless of declaration order (see `Web.MachineTypeTemplateLive`
+      # moduledoc) — it's fine for it to sit after the machine-card block,
+      # making it the actual last tab overall.
+      last = List.last(tabs)
+      assert last.id == :manufacturing_machine_type_template
+      assert last.path == "manufacturing/machine-types/:uuid/template"
+    end
+
+    test "the machine type template tab is hidden and points at MachineTypeTemplateLive" do
+      template_tab =
+        Enum.find(
+          PhoenixKitManufacturing.admin_tabs(),
+          &(&1.id == :manufacturing_machine_type_template)
+        )
+
+      assert template_tab.path == "manufacturing/machine-types/:uuid/template"
+      assert template_tab.visible == false
+      assert template_tab.parent == :manufacturing
+
+      assert template_tab.live_view ==
+               {PhoenixKitManufacturing.Web.MachineTypeTemplateLive, :edit}
     end
   end
 

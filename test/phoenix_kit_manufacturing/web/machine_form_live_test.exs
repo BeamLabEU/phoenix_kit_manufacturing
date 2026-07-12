@@ -14,7 +14,7 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLiveTest do
   alias PhoenixKit.Utils.Multilang
   alias PhoenixKitEntities, as: Entities
   alias PhoenixKitEntities.EntityData
-  alias PhoenixKitManufacturing.{EntitiesRegistry, Machines}
+  alias PhoenixKitManufacturing.{EntitiesRegistry, Machines, Paths}
 
   defp new_path, do: "/en/admin/manufacturing/machines/new"
   defp edit_path(machine), do: "/en/admin/manufacturing/machines/#{machine.uuid}/edit"
@@ -254,6 +254,18 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLiveTest do
       render_patch(view, edit_path(machine))
 
       assert has_element?(view, "label.badge-primary", "Lathe")
+    end
+  end
+
+  describe "Machine Types badges" do
+    test "each type badge carries a link to its field-template editor", %{conn: conn} do
+      start_supervised!(EntitiesRegistry)
+      type = create_machine_type!(%{name: "Lathe"})
+
+      conn = put_test_scope(conn, fake_scope())
+      {:ok, view, _html} = live(conn, new_path())
+
+      assert has_element?(view, "a[href='#{Paths.machine_type_template(type.uuid)}']")
     end
   end
 

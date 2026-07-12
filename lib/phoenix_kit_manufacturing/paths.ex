@@ -54,6 +54,14 @@ defmodule PhoenixKitManufacturing.Paths do
   @spec types() :: String.t()
   def types, do: Routes.path("/admin/entities/machine_type/data")
 
+  @doc """
+  Field-template editor for a single machine type (hidden CRUD route,
+  `visible: false` — see `Web.MachineTypeTemplateLive`). `uuid` is the
+  `machine_type` entity-data record's own uuid, not a machine's.
+  """
+  @spec machine_type_template(String.t()) :: String.t()
+  def machine_type_template(uuid), do: Routes.path("#{@base}/machine-types/#{uuid}/template")
+
   # ── Operations ──────────────────────────────────────────────────────
 
   @doc "Operations list — the entities admin UI for the `operation` entity."

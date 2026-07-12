@@ -263,6 +263,26 @@ defmodule PhoenixKitManufacturing do
         parent: :manufacturing,
         visible: false,
         live_view: {PhoenixKitManufacturing.Web.MachineFormLive, :comments}
+      },
+      # Machine type field-template editor — hidden CRUD route reachable from
+      # a pencil icon next to each type badge on `Web.MachineFormLive`'s
+      # General tab (or direct URL). Deliberately under "machine-types" (not
+      # "machines") so it never collides with `:manufacturing_machines`'
+      # regex `match:` above or the `:manufacturing_types` entities-redirect
+      # path. See `Web.MachineTypeTemplateLive` moduledoc.
+      %Tab{
+        id: :manufacturing_machine_type_template,
+        label: "Machine Type Template",
+        gettext_backend: PhoenixKitManufacturing.Gettext,
+        gettext_domain: "default",
+        icon: "hero-clipboard-document-list",
+        path: "manufacturing/machine-types/:uuid/template",
+        priority: 171,
+        level: :admin,
+        permission: module_key(),
+        parent: :manufacturing,
+        visible: false,
+        live_view: {PhoenixKitManufacturing.Web.MachineTypeTemplateLive, :edit}
       }
     ]
   end

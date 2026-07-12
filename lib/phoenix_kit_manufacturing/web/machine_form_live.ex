@@ -69,7 +69,10 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
   `metadata` here is this *machine's* freeform value map, keyed by whatever
   the linked types define, not a fixed changeset field — a different
   `metadata` from the type record's own). Recomputed whenever the type
-  selection changes.
+  selection changes. Each type badge carries a pencil icon-link to
+  `Web.MachineTypeTemplateLive`, the hidden-route mini-editor for that
+  type's own `field_template` — the generic entities admin UI has no widget
+  for it (see that module's moduledoc for why).
 
   ## Operations
 
@@ -814,25 +817,38 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
                     </p>
 
                     <div class="flex flex-wrap gap-2">
-                      <label
-                        :for={t <- @all_types}
-                        class={[
-                          "badge badge-lg cursor-pointer gap-1.5 select-none transition-colors",
-                          if(MapSet.member?(@linked_type_uuids, t.uuid),
-                            do: "badge-primary",
-                            else: "badge-ghost hover:badge-outline"
-                          )
-                        ]}
-                        phx-click="toggle_type"
-                        phx-value-uuid={t.uuid}
-                      >
-                        <.icon
-                          :if={MapSet.member?(@linked_type_uuids, t.uuid)}
-                          name="hero-check"
-                          class="h-3.5 w-3.5"
-                        />
-                        {t.name}
-                      </label>
+                      <%!-- Badge + pencil link are siblings, not nested — the
+                           pencil navigates to `Web.MachineTypeTemplateLive`
+                           (a different route entirely), and nesting it inside
+                           the badge's own phx-click="toggle_type" label would
+                           let the click bubble up and toggle the type too. --%>
+                      <div :for={t <- @all_types} class="inline-flex items-center gap-1">
+                        <label
+                          class={[
+                            "badge badge-lg cursor-pointer gap-1.5 select-none transition-colors",
+                            if(MapSet.member?(@linked_type_uuids, t.uuid),
+                              do: "badge-primary",
+                              else: "badge-ghost hover:badge-outline"
+                            )
+                          ]}
+                          phx-click="toggle_type"
+                          phx-value-uuid={t.uuid}
+                        >
+                          <.icon
+                            :if={MapSet.member?(@linked_type_uuids, t.uuid)}
+                            name="hero-check"
+                            class="h-3.5 w-3.5"
+                          />
+                          {t.name}
+                        </label>
+                        <.link
+                          navigate={Paths.machine_type_template(t.uuid)}
+                          class="btn btn-ghost btn-xs btn-circle"
+                          title={gettext("Edit specification fields for %{name}", name: t.name)}
+                        >
+                          <.icon name="hero-pencil-square" class="h-3.5 w-3.5" />
+                        </.link>
+                      </div>
                     </div>
                   </div>
 
