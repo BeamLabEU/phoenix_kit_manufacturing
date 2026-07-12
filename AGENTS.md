@@ -110,6 +110,14 @@ Tables: `phoenix_kit_machines`, `phoenix_kit_machine_types`,
 `phoenix_kit_machine_type_assignments` (join, unique on
 `(machine_uuid, machine_type_uuid)`, both FKs `ON DELETE CASCADE`).
 
+**Rollback is not supported as of V5**: `down/1` unconditionally raises.
+`machine_type`/`operation`/`defect_reason` data now lives in
+`phoenix_kit_entities` (a separate package this migration can't losslessly
+reverse-engineer a rollback for), so calling `down/1` blocks rollback of
+the *whole* module (V1 through V5, not just the V5 delta) — restoring a
+pre-V5 database backup is the only supported path. See the moduledoc's
+"## Rollback" section in `migrations/machines.ex` for the full rationale.
+
 ## Testing
 
 Two-level suite (see `test/test_helper.exs`):
