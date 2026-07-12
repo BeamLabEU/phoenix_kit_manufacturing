@@ -7,6 +7,20 @@
 > 5. Пин ядра в модулях: оставить текущий + комментарий-placeholder «bump to >= 1.7.<N> после публикации V143»; фактический бамп — мейнтейнер при релизе.
 > 6. Зависимость PR manufacturing → PR locations подтверждена (PlacePicker/pk_dep) — порядок мерджа зафиксировать в обоих PR-телах.
 
+> **ОБЯЗАТЕЛЬНЫЕ ПРАВКИ ПО ИТОГАМ РЕВЬЮ ПЛАНА (2026-07-12, GLM-5.2@Max + Sonnet 5; проверены по коду):**
+> 1. **[major, GLM] Data-gap внешних V1-хостов**: V143 переносит только схему; перенос legacy-данных (machine_types→entities) НЕ воспроизводится, а его код удаляется в C3. Решение: PR manufacturing явно скоупируется «fresh-install; upgrade V1-хостов с данными — по инструкции», и в dev_docs добавляется LEGACY_DATA_MIGRATION.md — самодостаточная инструкция переноса (шаги + ссылка на git-коммит с прежним V5-кодом конверсии). Задача C3 дополняется созданием этого документа ДО удаления кода.
+> 2. **[major, GLM] C10: убрать project_eval-вариант репетиции** — Ecto.Migration.execute/1 работает только внутри runner-процесса Migrator; голый project_eval молча не применяет DDL. Репетиция — только mix phoenix_kit.update ЛИБО Ecto.Migrator.up по образцу ensure_current (migration.ex:244-259), с пост-верификацией каждого объекта probe-style SQL.
+> 3. **[major, GLM] C11: create_schema — факт, не исследование**: схему создаёт только V01 (v01.ex:6-9); version-scoped up(143) в непубличный prefix требует ручного CREATE SCHEMA (план уже так делает — зафиксировать как данность, create_schema: true НЕ передавать в ожидании эффекта).
+> 4. **[major/MANDATORY, GLM+Sonnet] C4 — гонка провижининга блюпринтов**: unique-индекс phoenix_kit_entities_name_uidx (v17.ex:53-56) существует → (i) ensure_blueprint_entity переписать без жёсткого {:ok,_}-матча: create_entity → {:error, changeset-конфликт} → re-fetch get_entity_by_name; (ii) провижининг вызывается В НАЧАЛЕ каждого do_reload (пока все три блюпринта не подтверждены), не только в init; (iii) rescue/catch :exit вокруг — деградация, не падение supervision tree.
+> 5. **[major, GLM] C5/C8 — самодостаточность тестов модулей**: после удаления собственных миграций mix test модулей требует core ≥V143, которого нет в Hex-пине до релиза. В CLAUDE.md обоих модулей — явный раздел: «интеграционные тесты до релиза ядра ≥1.7.<N> запускаются с PHOENIX_KIT_PATH=../phoenix_kit (checkout с V143)»; fallback-код в test_helper НЕ добавляем (чистота модулей).
+> 6. **[minor, GLM] C1: у warehouse v01 ВОСЕМЬ индексов** (1 unique number + 7 обычных, вкл. received_at) — не потерять последний.
+> 7. **[minor, GLM] C1: порядок в апгрейд-ветке** — drop_fk СТРОГО до conditional-DROP legacy-таблиц; в DO$$-EXECUTE использовать DROP TABLE ... CASCADE (устойчивость к частичному прогону).
+> 8. **[minor, GLM] down(143): oговорка в moduledoc** — на V1-upgrade-хосте down дропнет join-таблицы, созданные не V143 (существовали до неё) — отметить в docstring down/1, не только в PR-теле.
+> 9. **[minor, GLM] Терминология отката**: отмена V143 = down(prefix:, version: 142) (target exclusive) — унифицировать в C10 и риске №5.
+> 10. **[minor, Sonnet] Дрейф divergence**: числа уже устарели (mfg +92/-0) — обязательная пересверка непосредственно перед резкой каждой PR-ветки (C0/E уже требуют — подтверждено живой проверкой).
+> 11. **[minor, Sonnet] C15: зависимость PlacePicker УЖЕ жёсткая** (machine_form_live.ex:148,406,971) — в PR-теле писать «не скомпилируется без locations», шаг «подтвердить/опровергнуть» убрать.
+> 12. **[minor, Sonnet] C11: ссылки на строки** — create_schema вычисляется в phoenix_kit.update.ex:440,478 (не 476-479).
+
 # Волна C: Core-консолидация миграций manufacturing/warehouse + PR-пакет (core/locations/warehouse/manufacturing)
 
 ## Цель
