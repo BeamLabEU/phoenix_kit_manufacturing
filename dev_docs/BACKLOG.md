@@ -18,3 +18,11 @@ blocked on a dependency this module doesn't control.
   (core, `phoenix_kit`) only supports a hard `scope_folder_id` restriction
   or no restriction at all — there's no "default folder, still browsable"
   mode. Revisit once core adds that capability.
+
+## Upstream PR / CHANGELOG reminders
+
+- Mention in the upstream PR/CHANGELOG: rollback of the module after V5 is
+  not possible (`down/1` unconditionally `raise`s) — the only supported
+  path is restoring a pre-V5 database backup. See
+  `dev_docs/ENTITIES_MIGRATION_SPEC.md` §5.7 and the "## Rollback" section
+  in `migrations/machines.ex`.
