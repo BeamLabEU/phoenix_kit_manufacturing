@@ -39,6 +39,23 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
   but instead of per-chip pill styling with an individual ✕ button, a
   single "N filters active" indicator plus one "Reset" button clears every
   filter value at once.
+
+  ## Type-badge staleness window
+
+  The `handle_info/2` clauses below that refresh `:machines` on a
+  `machine_type` broadcast race `EntitiesRegistry`'s own subscription to
+  the same PubSub message: both processes receive the broadcast
+  independently, with no ordering guarantee that the registry's ETS cache
+  has already been invalidated by the time this LiveView's `handle_info/2`
+  runs `assign_machines/1` and re-resolves `type_names` via
+  `EntitiesRegistry.label/3`. If this process's callback wins the race, the
+  re-render can briefly show the pre-change label/title until the *next*
+  broadcast or navigation. This is accepted as the cost of the pattern —
+  the same trade-off Andi's `StatusRegistry`-backed live views make — not a
+  bug to fix here. Deliberately **not** mitigated by making this callback
+  synchronously reload the registry itself: that would couple this
+  LiveView to `EntitiesRegistry`'s internals and reintroduce the N+1 query
+  cost the cache exists to avoid.
   """
 
   use Phoenix.LiveView
@@ -178,11 +195,7 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
   defp load_data(socket, :index) do
     socket
     |> PhoenixKitManufacturing.Web.ColumnManagement.assign_column_state(MachineColumnConfig)
-    |> assign_machines()
-  rescue
-    error ->
-      Logger.error("Failed to load machines: #{inspect(error)}")
-      put_flash(socket, :error, gettext("Failed to load machines."))
+    |> reload_machines()
   end
 
   # `machine_type`/`operation`/`defect_reason` CRUD moved to the generic
@@ -198,6 +211,20 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
   defp entities_redirect_path(:defect_reasons), do: Paths.defect_reasons()
 
   # ── Machines pipeline (search + column filters + sort) ───────────
+
+  # Rescue-wrapped `assign_machines/1` — shared by `load_data/2`'s initial
+  # `:index` load and the `handle_info/2` machine_type-broadcast clauses
+  # below, so a DB hiccup on either path degrades with a flash instead of
+  # crashing the LiveView (same guarantee moduledoc's "LiveViews wrap
+  # context reads in rescue" convention calls for everywhere else in this
+  # module).
+  defp reload_machines(socket) do
+    assign_machines(socket)
+  rescue
+    error ->
+      Logger.error("Failed to load machines: #{inspect(error)}")
+      put_flash(socket, :error, gettext("Failed to load machines."))
+  end
 
   defp assign_machines(socket) do
     machines =
@@ -415,11 +442,11 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
   # `PhoenixKitEntities.Events` for the message shapes matched here.
   def handle_info({event, _entity_uuid, _data_uuid}, socket)
       when event in [:data_created, :data_updated, :data_deleted] do
-    {:noreply, assign_machines(socket)}
+    {:noreply, reload_machines(socket)}
   end
 
   def handle_info({:data_reordered, _entity_uuid}, socket) do
-    {:noreply, assign_machines(socket)}
+    {:noreply, reload_machines(socket)}
   end
 
   # Defensive catch-all for unmatched messages (e.g. future PubSub
