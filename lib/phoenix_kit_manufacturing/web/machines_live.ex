@@ -8,14 +8,13 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
       `PhoenixKitManufacturing.ColumnConfig.Machines` for configurable
       columns, per-column filters, sorting, and a saved view (persisted via
       `PhoenixKitManufacturing.ViewConfigs`). See `Web.ColumnManagement`.
-    * `:types` — list of machine types (plain `table_default`, no
-      ColumnConfig — reference-data cardinality doesn't need it).
-    * `:operations` — list of the operations directory (same plain
-      `table_default` treatment as `:types`; see
-      `dev_docs/IMPLEMENTATION_PLAN.md` M24/finding #9).
-    * `:defect_reasons` — list of the defect-reasons directory (same plain
-      `table_default` treatment, symmetric to `:operations`; see
-      `dev_docs/IMPLEMENTATION_PLAN.md` M32).
+    * `:types` / `:operations` / `:defect_reasons` — redirect-only, as of
+      the entities migration (`dev_docs/ENTITIES_MIGRATION_SPEC.md`).
+      `machine_type`/`operation`/`defect_reason` CRUD now lives on the
+      generic entities admin UI, so `load_data/2` immediately
+      `push_navigate`s to the matching `/admin/entities/:slug/data` page
+      (`Paths.types/0` / `.operations/0` / `.defect_reasons/0`) instead of
+      rendering a list of its own — see `load_data/2`'s redirect clause.
 
   Admin-chrome pattern: self-wrapping render with `LayoutWrapper.app_layout`
   so the active subtab's name/description land in the global admin header
@@ -58,8 +57,10 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
 
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.URLSigner
+  alias PhoenixKitEntities, as: Entities
+  alias PhoenixKitEntities.Events
   alias PhoenixKitManufacturing.ColumnConfig.Machines, as: MachineColumnConfig
-  alias PhoenixKitManufacturing.{DefectReasons, Errors, Machines, Operations, Paths}
+  alias PhoenixKitManufacturing.{EntitiesRegistry, Errors, Machines, Paths}
   alias PhoenixKitManufacturing.Web.Components.ColumnModal
 
   # Opt out of PhoenixKit's auto admin-chrome layout so this view self-wraps
@@ -81,14 +82,13 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
     current_user = scope && PhoenixKit.Users.Auth.Scope.user(scope)
     user_uuid = current_user && current_user.uuid
 
+    if connected?(socket), do: subscribe_to_machine_type_changes()
+
     {:ok,
      assign(socket,
        page_title: gettext("Machines"),
        page_subtitle: tab_subtitle(:index),
        machines: [],
-       machine_types: [],
-       operations: [],
-       defect_reasons: [],
        confirm_delete: nil,
        locale: socket.assigns[:current_locale] || Gettext.get_locale(),
        current_user_uuid: user_uuid,
@@ -98,8 +98,8 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
        # Safe defaults for column-management assigns — overwritten by
        # assign_column_state/2 in load_data/2 when live_action is :index.
        # Present in mount so `:if`-guarded template sections that reference
-       # these never encounter a missing-assign error even if :types tab is
-       # loaded first or a connection is re-established mid-session.
+       # these never encounter a missing-assign error even if a connection
+       # is re-established mid-session.
        selected_columns: [],
        active_filters: [],
        filter_values: %{},
@@ -107,6 +107,30 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
        temp_selected_columns: nil,
        temp_active_filters: nil
      )}
+  end
+
+  # Keeps an already-open :index page's `type_names` badges fresh when a
+  # machine type is renamed, trashed, or reordered on
+  # `/admin/entities/machine_type/data` — see the `handle_info/2` clauses
+  # below. `EntitiesRegistry` invalidates its own ETS cache independently
+  # on the same broadcast (see its moduledoc), so this only needs to
+  # trigger a re-render, not resolve the new value itself. Scoped to the
+  # `machine_type` entity specifically via `subscribe_to_entity_data/1`
+  # (not `EntitiesRegistry`'s own broader `subscribe_to_all_data/0`) —
+  # `:index` never shows operation/defect_reason data, so the wider topic
+  # would only buy unrelated re-renders. Guarded the same way every other
+  # DB read in this module is (see moduledoc "LiveViews wrap context reads
+  # in rescue") — a host that hasn't run `mix phoenix_kit.update` yet (no
+  # `phoenix_kit_entities` tables) must not crash the mount.
+  defp subscribe_to_machine_type_changes do
+    case Entities.get_entity_by_name("machine_type") do
+      nil -> :ok
+      entity -> Events.subscribe_to_entity_data(entity.uuid)
+    end
+  rescue
+    error ->
+      Logger.debug("Failed to subscribe to machine_type entity events: #{inspect(error)}")
+      :ok
   end
 
   @impl true
@@ -141,14 +165,14 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
     assign_machines(socket)
   end
 
-  defp tab_title(:index), do: gettext("Machines")
-  defp tab_title(:types), do: gettext("Types")
-  defp tab_title(:operations), do: gettext("Operations")
-  defp tab_title(:defect_reasons), do: gettext("Defect Reasons")
+  # Redirect-only live_actions (see moduledoc) never actually render, so
+  # the exact string doesn't matter — but `handle_params/3` calls this for
+  # every action, including those, before `load_data/2` gets a chance to
+  # redirect. A single catch-all (rather than one clause per live_action)
+  # avoids a `FunctionClauseError` on that call without pretending the
+  # returned title is ever shown for anything but `:index`.
+  defp tab_title(_action), do: gettext("Machines")
 
-  defp tab_subtitle(:types), do: gettext("Categories used to tag machines.")
-  defp tab_subtitle(:operations), do: gettext("Operations used in production routing.")
-  defp tab_subtitle(:defect_reasons), do: gettext("Reasons used to classify production defects.")
   defp tab_subtitle(_action), do: gettext("Production equipment reference book.")
 
   defp load_data(socket, :index) do
@@ -161,29 +185,17 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
       put_flash(socket, :error, gettext("Failed to load machines."))
   end
 
-  defp load_data(socket, :types) do
-    assign(socket, :machine_types, Machines.list_machine_types())
-  rescue
-    error ->
-      Logger.error("Failed to load machine types: #{inspect(error)}")
-      put_flash(socket, :error, gettext("Failed to load machine types."))
+  # `machine_type`/`operation`/`defect_reason` CRUD moved to the generic
+  # entities admin UI (see moduledoc) — these three subtabs no longer load
+  # or render anything of their own, they just hand off to the matching
+  # entities page.
+  defp load_data(socket, action) when action in [:types, :operations, :defect_reasons] do
+    push_navigate(socket, to: entities_redirect_path(action))
   end
 
-  defp load_data(socket, :operations) do
-    assign(socket, :operations, Operations.list_operations())
-  rescue
-    error ->
-      Logger.error("Failed to load operations: #{inspect(error)}")
-      put_flash(socket, :error, gettext("Failed to load operations."))
-  end
-
-  defp load_data(socket, :defect_reasons) do
-    assign(socket, :defect_reasons, DefectReasons.list_defect_reasons())
-  rescue
-    error ->
-      Logger.error("Failed to load defect reasons: #{inspect(error)}")
-      put_flash(socket, :error, gettext("Failed to load defect reasons."))
-  end
+  defp entities_redirect_path(:types), do: Paths.types()
+  defp entities_redirect_path(:operations), do: Paths.operations()
+  defp entities_redirect_path(:defect_reasons), do: Paths.defect_reasons()
 
   # ── Machines pipeline (search + column filters + sort) ───────────
 
@@ -206,14 +218,18 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
   defp enrich_machines(machines, locale) do
     location_by_uuid = location_labels(machines, locale)
     type_uuids_by_machine = Machines.linked_type_uuids_by_machine(Enum.map(machines, & &1.uuid))
-    type_name_by_uuid = Map.new(Machines.list_machine_types(), &{&1.uuid, &1.name})
 
     Enum.map(machines, fn m ->
+      # `EntitiesRegistry.label/3` resolves "Unknown" for a type_uuid it
+      # doesn't recognize (trashed/hard-removed out from under this soft
+      # reference) rather than dropping it — a dangling link stays visible
+      # instead of silently vanishing from the badge list, the graceful-
+      # degradation behavior `dev_docs/ENTITIES_MIGRATION_SPEC.md` §5
+      # calls for.
       type_names =
         type_uuids_by_machine
         |> Map.get(m.uuid, [])
-        |> Enum.map(&Map.get(type_name_by_uuid, &1))
-        |> Enum.reject(&is_nil/1)
+        |> Enum.map(&EntitiesRegistry.label(&1, :machine_type, locale))
         |> Enum.sort()
 
       %{
@@ -386,29 +402,24 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
     end
   end
 
-  def handle_event("delete_machine_type", _params, socket) do
-    case socket.assigns.confirm_delete do
-      {"machine_type", uuid} -> do_delete_item(socket, :machine_type, uuid)
-      _ -> {:noreply, assign(socket, :confirm_delete, nil)}
-    end
-  end
-
-  def handle_event("delete_operation", _params, socket) do
-    case socket.assigns.confirm_delete do
-      {"operation", uuid} -> do_delete_item(socket, :operation, uuid)
-      _ -> {:noreply, assign(socket, :confirm_delete, nil)}
-    end
-  end
-
-  def handle_event("delete_defect_reason", _params, socket) do
-    case socket.assigns.confirm_delete do
-      {"defect_reason", uuid} -> do_delete_item(socket, :defect_reason, uuid)
-      _ -> {:noreply, assign(socket, :confirm_delete, nil)}
-    end
-  end
-
   def handle_event("cancel_delete", _params, socket) do
     {:noreply, assign(socket, :confirm_delete, nil)}
+  end
+
+  # Machine-type data changed on the entities admin UI — refresh
+  # `:machines` so its `type_names` badges (resolved via
+  # `EntitiesRegistry.label/3` in `enrich_machines/2`) don't keep showing a
+  # stale/trashed title. Comes before the catch-all clause below — Elixir
+  # tries `handle_info/2` clauses in source order. See
+  # `subscribe_to_machine_type_changes/0` for the subscription itself and
+  # `PhoenixKitEntities.Events` for the message shapes matched here.
+  def handle_info({event, _entity_uuid, _data_uuid}, socket)
+      when event in [:data_created, :data_updated, :data_deleted] do
+    {:noreply, assign_machines(socket)}
+  end
+
+  def handle_info({:data_reordered, _entity_uuid}, socket) do
+    {:noreply, assign_machines(socket)}
   end
 
   # Defensive catch-all for unmatched messages (e.g. future PubSub
@@ -455,41 +466,17 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
   end
 
   defp fetch_for_delete(:machine, uuid), do: Machines.get_machine(uuid)
-  defp fetch_for_delete(:machine_type, uuid), do: Machines.get_machine_type(uuid)
-  defp fetch_for_delete(:operation, uuid), do: Operations.get_operation(uuid)
-  defp fetch_for_delete(:defect_reason, uuid), do: DefectReasons.get_defect_reason(uuid)
 
   defp delete_for_kind(:machine, record, socket),
     do: Machines.delete_machine(record, actor_opts(socket))
 
-  defp delete_for_kind(:machine_type, record, socket),
-    do: Machines.delete_machine_type(record, actor_opts(socket))
-
-  defp delete_for_kind(:operation, record, socket),
-    do: Operations.delete_operation(record, actor_opts(socket))
-
-  defp delete_for_kind(:defect_reason, record, socket),
-    do: DefectReasons.delete_defect_reason(record, actor_opts(socket))
-
   defp deleted_message(:machine), do: gettext("Machine deleted.")
-  defp deleted_message(:machine_type), do: gettext("Machine type deleted.")
-  defp deleted_message(:operation), do: gettext("Operation deleted.")
-  defp deleted_message(:defect_reason), do: gettext("Defect reason deleted.")
 
   defp not_found_atom(:machine), do: :machine_not_found
-  defp not_found_atom(:machine_type), do: :machine_type_not_found
-  defp not_found_atom(:operation), do: :operation_not_found
-  defp not_found_atom(:defect_reason), do: :defect_reason_not_found
 
   defp delete_failed_atom(:machine), do: :machine_delete_failed
-  defp delete_failed_atom(:machine_type), do: :machine_type_delete_failed
-  defp delete_failed_atom(:operation), do: :operation_delete_failed
-  defp delete_failed_atom(:defect_reason), do: :defect_reason_delete_failed
 
   defp reload_action(:machine), do: :index
-  defp reload_action(:machine_type), do: :types
-  defp reload_action(:operation), do: :operations
-  defp reload_action(:defect_reason), do: :defect_reasons
 
   defp actor_opts(socket) do
     case socket.assigns[:phoenix_kit_current_scope] do
@@ -727,18 +714,6 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
           />
         </div>
 
-        <div :if={@active_tab == :types}>
-          <.types_table machine_types={@machine_types} />
-        </div>
-
-        <div :if={@active_tab == :operations}>
-          <.operations_table operations={@operations} />
-        </div>
-
-        <div :if={@active_tab == :defect_reasons}>
-          <.defect_reasons_table defect_reasons={@defect_reasons} />
-        </div>
-
         <.confirm_modal
           show={match?({"machine", _}, @confirm_delete)}
           on_confirm="delete_machine"
@@ -746,39 +721,6 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
           title={gettext("Delete Machine")}
           title_icon="hero-trash"
           messages={[{:warning, gettext("This will permanently delete this machine. This cannot be undone.")}]}
-          confirm_text={gettext("Delete")}
-          danger={true}
-        />
-
-        <.confirm_modal
-          show={match?({"machine_type", _}, @confirm_delete)}
-          on_confirm="delete_machine_type"
-          on_cancel="cancel_delete"
-          title={gettext("Delete Machine Type")}
-          title_icon="hero-trash"
-          messages={[{:warning, gettext("This will permanently delete this machine type. Machines using it will lose the type association.")}]}
-          confirm_text={gettext("Delete")}
-          danger={true}
-        />
-
-        <.confirm_modal
-          show={match?({"operation", _}, @confirm_delete)}
-          on_confirm="delete_operation"
-          on_cancel="cancel_delete"
-          title={gettext("Delete Operation")}
-          title_icon="hero-trash"
-          messages={[{:warning, gettext("This will permanently delete this operation. Machines using it will lose the link.")}]}
-          confirm_text={gettext("Delete")}
-          danger={true}
-        />
-
-        <.confirm_modal
-          show={match?({"defect_reason", _}, @confirm_delete)}
-          on_confirm="delete_defect_reason"
-          on_cancel="cancel_delete"
-          title={gettext("Delete Defect Reason")}
-          title_icon="hero-trash"
-          messages={[{:warning, gettext("This will permanently delete this defect reason. This cannot be undone.")}]}
           confirm_text={gettext("Delete")}
           danger={true}
         />
@@ -1062,340 +1004,12 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
   defp emdash(""), do: "—"
   defp emdash(v), do: v
 
-  # Renders `Operation.base_time_norm_seconds` as zero-padded `H:MM:SS` —
-  # readable at both ends of the scale a base norm can take (a few seconds
-  # for a quick manual step, multiple hours for a batch cure/bake cycle).
-  defp format_duration(nil), do: "—"
-
-  defp format_duration(seconds) when is_integer(seconds) and seconds >= 0 do
-    hours = div(seconds, 3600)
-    minutes = seconds |> rem(3600) |> div(60)
-    secs = rem(seconds, 60)
-
-    [hours, minutes, secs]
-    |> Enum.map_join(":", &(&1 |> Integer.to_string() |> String.pad_leading(2, "0")))
-  end
-
-  # Always renders `<.table_default>` (rather than gating it behind a
-  # `@machine_types != []` check) so the New Type button in `:toolbar_actions`
-  # stays reachable from an empty list — same shape as the `:index` tab's
-  # `machines-list` table, whose "No machines yet." message is likewise an
-  # in-table row, not a standalone empty-state card.
-  defp types_table(assigns) do
-    ~H"""
-    <.table_default
-      variant="zebra"
-      size="sm"
-      toggleable={true}
-      id="machine-types-list"
-      items={@machine_types}
-      card_fields={
-        fn t ->
-          [
-            %{label: gettext("Description"), value: t.description || "—"},
-            %{label: gettext("Status"), value: status_label(t.status)}
-          ]
-        end
-      }
-    >
-      <:toolbar_actions>
-        <.link navigate={Paths.type_new()} class="btn btn-primary btn-sm">
-          <.icon name="hero-plus" class="w-4 h-4" /> {gettext("New Type")}
-        </.link>
-      </:toolbar_actions>
-
-      <.table_default_header>
-        <.table_default_row>
-          <.table_default_header_cell>{gettext("Name")}</.table_default_header_cell>
-          <.table_default_header_cell>{gettext("Description")}</.table_default_header_cell>
-          <.table_default_header_cell>{gettext("Status")}</.table_default_header_cell>
-          <.table_default_header_cell class="text-right whitespace-nowrap">
-            {gettext("Actions")}
-          </.table_default_header_cell>
-        </.table_default_row>
-      </.table_default_header>
-      <.table_default_body>
-        <%= if @machine_types == [] do %>
-          <.table_default_row hover={false}>
-            <.table_default_cell colspan={4} class="text-center py-10 text-base-content/50">
-              <.icon name="hero-tag" class="h-10 w-10 mx-auto mb-2 opacity-50" />
-              <div class="text-sm font-medium">{gettext("No machine types yet.")}</div>
-            </.table_default_cell>
-          </.table_default_row>
-        <% end %>
-        <.table_default_row :for={t <- @machine_types}>
-          <.table_default_cell>
-            <.link navigate={Paths.type_edit(t.uuid)} class="link link-hover font-medium">
-              {t.name}
-            </.link>
-          </.table_default_cell>
-          <.table_default_cell class="text-sm text-base-content/60">
-            {t.description || "—"}
-          </.table_default_cell>
-          <.table_default_cell>
-            <span class={["badge badge-sm", status_badge_class(t.status)]}>
-              {status_label(t.status)}
-            </span>
-          </.table_default_cell>
-          <.table_default_cell class="text-right whitespace-nowrap">
-            <.table_row_menu mode="dropdown" id={"type-menu-#{t.uuid}"}>
-              <.table_row_menu_link
-                navigate={Paths.type_edit(t.uuid)}
-                icon="hero-pencil"
-                label={gettext("Edit")}
-              />
-              <.table_row_menu_divider />
-              <.table_row_menu_button
-                phx-click="show_delete_confirm"
-                phx-value-uuid={t.uuid}
-                phx-value-type="machine_type"
-                icon="hero-trash"
-                label={gettext("Delete")}
-                variant="error"
-              />
-            </.table_row_menu>
-          </.table_default_cell>
-        </.table_default_row>
-      </.table_default_body>
-      <:card_header :let={t}>
-        <.link navigate={Paths.type_edit(t.uuid)} class="font-medium text-sm link link-hover">
-          {t.name}
-        </.link>
-      </:card_header>
-      <:card_actions :let={t}>
-        <.link navigate={Paths.type_edit(t.uuid)} class="btn btn-ghost btn-xs">
-          {gettext("Edit")}
-        </.link>
-        <button
-          phx-click="show_delete_confirm"
-          phx-value-uuid={t.uuid}
-          phx-value-type="machine_type"
-          class="btn btn-ghost btn-xs text-error"
-        >
-          {gettext("Delete")}
-        </button>
-      </:card_actions>
-    </.table_default>
-    """
-  end
-
-  # Always renders `<.table_default>` — see `types_table/1`'s comment for
-  # why (New Operation button reachability from an empty list).
-  defp operations_table(assigns) do
-    ~H"""
-    <.table_default
-      variant="zebra"
-      size="sm"
-      toggleable={true}
-      id="operations-list"
-      items={@operations}
-      card_fields={
-        fn o ->
-          [
-            %{label: gettext("Unit"), value: o.unit || "—"},
-            %{label: gettext("Base norm"), value: format_duration(o.base_time_norm_seconds)},
-            %{label: gettext("Status"), value: status_label(o.status)}
-          ]
-        end
-      }
-    >
-      <:toolbar_actions>
-        <.link navigate={Paths.operation_new()} class="btn btn-primary btn-sm">
-          <.icon name="hero-plus" class="w-4 h-4" /> {gettext("New Operation")}
-        </.link>
-      </:toolbar_actions>
-
-      <.table_default_header>
-        <.table_default_row>
-          <.table_default_header_cell>{gettext("Name")}</.table_default_header_cell>
-          <.table_default_header_cell>{gettext("Unit")}</.table_default_header_cell>
-          <.table_default_header_cell>{gettext("Base norm")}</.table_default_header_cell>
-          <.table_default_header_cell>{gettext("Status")}</.table_default_header_cell>
-          <.table_default_header_cell class="text-right whitespace-nowrap">
-            {gettext("Actions")}
-          </.table_default_header_cell>
-        </.table_default_row>
-      </.table_default_header>
-      <.table_default_body>
-        <%= if @operations == [] do %>
-          <.table_default_row hover={false}>
-            <.table_default_cell colspan={5} class="text-center py-10 text-base-content/50">
-              <.icon name="hero-clock" class="h-10 w-10 mx-auto mb-2 opacity-50" />
-              <div class="text-sm font-medium">{gettext("No operations yet.")}</div>
-            </.table_default_cell>
-          </.table_default_row>
-        <% end %>
-        <.table_default_row :for={o <- @operations}>
-          <.table_default_cell>
-            <.link navigate={Paths.operation_edit(o.uuid)} class="link link-hover font-medium">
-              {o.name}
-            </.link>
-          </.table_default_cell>
-          <.table_default_cell class="text-sm text-base-content/60">
-            {o.unit || "—"}
-          </.table_default_cell>
-          <.table_default_cell class="text-sm text-base-content/60">
-            {format_duration(o.base_time_norm_seconds)}
-          </.table_default_cell>
-          <.table_default_cell>
-            <span class={["badge badge-sm", status_badge_class(o.status)]}>
-              {status_label(o.status)}
-            </span>
-          </.table_default_cell>
-          <.table_default_cell class="text-right whitespace-nowrap">
-            <.table_row_menu mode="dropdown" id={"operation-menu-#{o.uuid}"}>
-              <.table_row_menu_link
-                navigate={Paths.operation_edit(o.uuid)}
-                icon="hero-pencil"
-                label={gettext("Edit")}
-              />
-              <.table_row_menu_divider />
-              <.table_row_menu_button
-                phx-click="show_delete_confirm"
-                phx-value-uuid={o.uuid}
-                phx-value-type="operation"
-                icon="hero-trash"
-                label={gettext("Delete")}
-                variant="error"
-              />
-            </.table_row_menu>
-          </.table_default_cell>
-        </.table_default_row>
-      </.table_default_body>
-      <:card_header :let={o}>
-        <.link navigate={Paths.operation_edit(o.uuid)} class="font-medium text-sm link link-hover">
-          {o.name}
-        </.link>
-      </:card_header>
-      <:card_actions :let={o}>
-        <.link navigate={Paths.operation_edit(o.uuid)} class="btn btn-ghost btn-xs">
-          {gettext("Edit")}
-        </.link>
-        <button
-          phx-click="show_delete_confirm"
-          phx-value-uuid={o.uuid}
-          phx-value-type="operation"
-          class="btn btn-ghost btn-xs text-error"
-        >
-          {gettext("Delete")}
-        </button>
-      </:card_actions>
-    </.table_default>
-    """
-  end
-
-  # Column shape mirrors `types_table/1` (Name / Description / Status),
-  # not `operations_table/1` — `DefectReason` has the same
-  # name/description/status shape as `MachineType` (see
-  # `Schemas.DefectReason`'s moduledoc), no `Operation`-style unit/norm
-  # fields. Always renders `<.table_default>` — see `types_table/1`'s
-  # comment for why (New Defect Reason button reachability from an empty
-  # list).
-  defp defect_reasons_table(assigns) do
-    ~H"""
-    <.table_default
-      variant="zebra"
-      size="sm"
-      toggleable={true}
-      id="defect-reasons-list"
-      items={@defect_reasons}
-      card_fields={
-        fn d ->
-          [
-            %{label: gettext("Description"), value: d.description || "—"},
-            %{label: gettext("Status"), value: status_label(d.status)}
-          ]
-        end
-      }
-    >
-      <:toolbar_actions>
-        <.link navigate={Paths.defect_reason_new()} class="btn btn-primary btn-sm">
-          <.icon name="hero-plus" class="w-4 h-4" /> {gettext("New Defect Reason")}
-        </.link>
-      </:toolbar_actions>
-
-      <.table_default_header>
-        <.table_default_row>
-          <.table_default_header_cell>{gettext("Name")}</.table_default_header_cell>
-          <.table_default_header_cell>{gettext("Description")}</.table_default_header_cell>
-          <.table_default_header_cell>{gettext("Status")}</.table_default_header_cell>
-          <.table_default_header_cell class="text-right whitespace-nowrap">
-            {gettext("Actions")}
-          </.table_default_header_cell>
-        </.table_default_row>
-      </.table_default_header>
-      <.table_default_body>
-        <%= if @defect_reasons == [] do %>
-          <.table_default_row hover={false}>
-            <.table_default_cell colspan={4} class="text-center py-10 text-base-content/50">
-              <.icon name="hero-exclamation-triangle" class="h-10 w-10 mx-auto mb-2 opacity-50" />
-              <div class="text-sm font-medium">{gettext("No defect reasons yet.")}</div>
-            </.table_default_cell>
-          </.table_default_row>
-        <% end %>
-        <.table_default_row :for={d <- @defect_reasons}>
-          <.table_default_cell>
-            <.link navigate={Paths.defect_reason_edit(d.uuid)} class="link link-hover font-medium">
-              {d.name}
-            </.link>
-          </.table_default_cell>
-          <.table_default_cell class="text-sm text-base-content/60">
-            {d.description || "—"}
-          </.table_default_cell>
-          <.table_default_cell>
-            <span class={["badge badge-sm", status_badge_class(d.status)]}>
-              {status_label(d.status)}
-            </span>
-          </.table_default_cell>
-          <.table_default_cell class="text-right whitespace-nowrap">
-            <.table_row_menu mode="dropdown" id={"defect-reason-menu-#{d.uuid}"}>
-              <.table_row_menu_link
-                navigate={Paths.defect_reason_edit(d.uuid)}
-                icon="hero-pencil"
-                label={gettext("Edit")}
-              />
-              <.table_row_menu_divider />
-              <.table_row_menu_button
-                phx-click="show_delete_confirm"
-                phx-value-uuid={d.uuid}
-                phx-value-type="defect_reason"
-                icon="hero-trash"
-                label={gettext("Delete")}
-                variant="error"
-              />
-            </.table_row_menu>
-          </.table_default_cell>
-        </.table_default_row>
-      </.table_default_body>
-      <:card_header :let={d}>
-        <.link navigate={Paths.defect_reason_edit(d.uuid)} class="font-medium text-sm link link-hover">
-          {d.name}
-        </.link>
-      </:card_header>
-      <:card_actions :let={d}>
-        <.link navigate={Paths.defect_reason_edit(d.uuid)} class="btn btn-ghost btn-xs">
-          {gettext("Edit")}
-        </.link>
-        <button
-          phx-click="show_delete_confirm"
-          phx-value-uuid={d.uuid}
-          phx-value-type="defect_reason"
-          class="btn btn-ghost btn-xs text-error"
-        >
-          {gettext("Delete")}
-        </button>
-      </:card_actions>
-    </.table_default>
-    """
-  end
-
   # Resolves the Storage file backing a machine's featured image (set via
   # the Files section on MachineFormLive — stored at
   # `machine.data["featured_image_uuid"]`, see `PhoenixKitManufacturing.Attachments`).
-  # Accepts anything carrying a `:data` map — the `%Machine{}` struct
-  # (types_table's underlying data doesn't use this) and the flat maps
-  # produced by `enrich_machines/2` above, so this resolution logic only
-  # needs writing once.
+  # Accepts anything carrying a `:data` map — the `%Machine{}` struct and
+  # the flat maps produced by `enrich_machines/2` above, so this resolution
+  # logic only needs writing once.
   defp featured_thumbnail_file(%{data: data}) when is_map(data) do
     with uuid when is_binary(uuid) and uuid != "" <- Map.get(data, "featured_image_uuid"),
          %Storage.File{} = file <- safe_get_file(uuid) do
@@ -1440,7 +1054,6 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
   end
 
   defp status_label("active"), do: gettext("Active")
-  defp status_label("inactive"), do: gettext("Inactive")
   defp status_label("maintenance"), do: gettext("Maintenance")
   defp status_label("repair"), do: gettext("Repair")
   defp status_label("mothballed"), do: gettext("Mothballed")

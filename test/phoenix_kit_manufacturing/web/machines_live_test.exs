@@ -3,79 +3,16 @@ defmodule PhoenixKitManufacturing.Web.MachinesLiveTest do
   # unavailable (see test_helper.exs).
   use PhoenixKitManufacturing.LiveCase
 
-  alias PhoenixKitManufacturing.{DefectReasons, Machines, Operations}
+  alias PhoenixKit.Utils.Multilang
+  alias PhoenixKitEntities, as: Entities
+  alias PhoenixKitEntities.EntityData
+  alias PhoenixKitManufacturing.{EntitiesRegistry, Machines, Paths}
 
   describe "list pages" do
     test "machines list renders the empty state", %{conn: conn} do
       conn = put_test_scope(conn, fake_scope())
       {:ok, _view, html} = live(conn, "/en/admin/manufacturing/machines")
       assert html =~ "No machines yet."
-    end
-
-    test "types list renders the empty state", %{conn: conn} do
-      conn = put_test_scope(conn, fake_scope())
-      {:ok, _view, html} = live(conn, "/en/admin/manufacturing/machines/types")
-      assert html =~ "No machine types yet."
-    end
-
-    test "operations list renders the empty state", %{conn: conn} do
-      conn = put_test_scope(conn, fake_scope())
-      {:ok, _view, html} = live(conn, "/en/admin/manufacturing/machines/operations")
-      assert html =~ "No operations yet."
-    end
-
-    test "an existing operation appears in the list with its unit and formatted base norm", %{
-      conn: conn
-    } do
-      {:ok, _op} =
-        Operations.create_operation(%{name: "Cutting", unit: "pcs", base_time_norm_seconds: 125})
-
-      conn = put_test_scope(conn, fake_scope())
-      {:ok, _view, html} = live(conn, "/en/admin/manufacturing/machines/operations")
-
-      assert html =~ "Cutting"
-      assert html =~ "pcs"
-      assert html =~ "00:02:05"
-    end
-
-    test "an operation without a base norm renders an em dash", %{conn: conn} do
-      {:ok, _op} = Operations.create_operation(%{name: "Inspection"})
-
-      conn = put_test_scope(conn, fake_scope())
-      {:ok, _view, html} = live(conn, "/en/admin/manufacturing/machines/operations")
-
-      assert html =~ "Inspection"
-      assert html =~ "—"
-    end
-
-    test "defect reasons list renders the empty state", %{conn: conn} do
-      conn = put_test_scope(conn, fake_scope())
-      {:ok, _view, html} = live(conn, "/en/admin/manufacturing/machines/defect-reasons")
-      assert html =~ "No defect reasons yet."
-    end
-
-    test "an existing defect reason appears in the list with its description", %{conn: conn} do
-      {:ok, _reason} =
-        DefectReasons.create_defect_reason(%{
-          name: "Scratched surface",
-          description: "Visible scratch on the finished part"
-        })
-
-      conn = put_test_scope(conn, fake_scope())
-      {:ok, _view, html} = live(conn, "/en/admin/manufacturing/machines/defect-reasons")
-
-      assert html =~ "Scratched surface"
-      assert html =~ "Visible scratch on the finished part"
-    end
-
-    test "a defect reason without a description renders an em dash", %{conn: conn} do
-      {:ok, _reason} = DefectReasons.create_defect_reason(%{name: "Missing part"})
-
-      conn = put_test_scope(conn, fake_scope())
-      {:ok, _view, html} = live(conn, "/en/admin/manufacturing/machines/defect-reasons")
-
-      assert html =~ "Missing part"
-      assert html =~ "—"
     end
 
     test "an existing machine appears in the list", %{conn: conn} do
@@ -106,7 +43,8 @@ defmodule PhoenixKitManufacturing.Web.MachinesLiveTest do
     end
 
     test "a machine's type name appears as a badge in the Types column", %{conn: conn} do
-      {:ok, type} = Machines.create_machine_type(%{name: "Laser"})
+      start_supervised!(EntitiesRegistry)
+      type = create_machine_type!(%{name: "Laser"})
       {:ok, machine} = Machines.create_machine(%{name: "Laser-01"})
       {:ok, _} = Machines.sync_machine_types(machine.uuid, [type.uuid])
 
@@ -209,61 +147,45 @@ defmodule PhoenixKitManufacturing.Web.MachinesLiveTest do
       assert html =~ "No machines yet."
       assert Machines.count_machines() == 0
     end
+  end
 
-    test "deleting an operation removes it from the list", %{conn: conn} do
-      {:ok, operation} = Operations.create_operation(%{name: "To Delete"})
+  # `machine_type`/`operation`/`defect_reason` CRUD moved to the generic
+  # entities admin UI as of the entities migration (see `MachinesLive`
+  # moduledoc) — visiting any of these three subtab routes now redirects
+  # straight there instead of rendering a list. The redirect happens on
+  # the very first `handle_params/3` call, before any page ever renders,
+  # so `live/2` itself returns the `:live_redirect` error tuple rather
+  # than `{:ok, view, html}` — same shape as
+  # `MachineFormLiveTest`'s "a non-existent machine's tab route..." test.
+  # `defect_reasons` is the most recently added of the three subtabs, so
+  # it gets its own explicit assertion rather than relying on "types
+  # covers the pattern, the others are analogous".
+  describe "entities redirects" do
+    test "the types subtab redirects to the machine_type entities page", %{conn: conn} do
       conn = put_test_scope(conn, fake_scope())
-      {:ok, view, _html} = live(conn, "/en/admin/manufacturing/machines/operations")
 
-      view
-      |> element(~s{button[phx-value-uuid="#{operation.uuid}"][phx-value-type="operation"]})
-      |> render_click()
+      assert {:error, {:live_redirect, %{to: to}}} =
+               live(conn, "/en/admin/manufacturing/machines/types")
 
-      html = render_click(view, "delete_operation", %{})
-      assert html =~ "No operations yet."
-      assert Operations.count_operations() == 0
+      assert to == Paths.types()
     end
 
-    test "cancelling an operation delete leaves it in the list", %{conn: conn} do
-      {:ok, operation} = Operations.create_operation(%{name: "Keep Me"})
+    test "the operations subtab redirects to the operation entities page", %{conn: conn} do
       conn = put_test_scope(conn, fake_scope())
-      {:ok, view, _html} = live(conn, "/en/admin/manufacturing/machines/operations")
 
-      view
-      |> element(~s{button[phx-value-uuid="#{operation.uuid}"][phx-value-type="operation"]})
-      |> render_click()
+      assert {:error, {:live_redirect, %{to: to}}} =
+               live(conn, "/en/admin/manufacturing/machines/operations")
 
-      html = render_click(view, "cancel_delete", %{})
-      assert html =~ "Keep Me"
-      assert Operations.count_operations() == 1
+      assert to == Paths.operations()
     end
 
-    test "deleting a defect reason removes it from the list", %{conn: conn} do
-      {:ok, reason} = DefectReasons.create_defect_reason(%{name: "To Delete"})
+    test "the defect reasons subtab redirects to the defect_reason entities page", %{conn: conn} do
       conn = put_test_scope(conn, fake_scope())
-      {:ok, view, _html} = live(conn, "/en/admin/manufacturing/machines/defect-reasons")
 
-      view
-      |> element(~s{button[phx-value-uuid="#{reason.uuid}"][phx-value-type="defect_reason"]})
-      |> render_click()
+      assert {:error, {:live_redirect, %{to: to}}} =
+               live(conn, "/en/admin/manufacturing/machines/defect-reasons")
 
-      html = render_click(view, "delete_defect_reason", %{})
-      assert html =~ "No defect reasons yet."
-      assert DefectReasons.count_defect_reasons() == 0
-    end
-
-    test "cancelling a defect reason delete leaves it in the list", %{conn: conn} do
-      {:ok, reason} = DefectReasons.create_defect_reason(%{name: "Keep Me"})
-      conn = put_test_scope(conn, fake_scope())
-      {:ok, view, _html} = live(conn, "/en/admin/manufacturing/machines/defect-reasons")
-
-      view
-      |> element(~s{button[phx-value-uuid="#{reason.uuid}"][phx-value-type="defect_reason"]})
-      |> render_click()
-
-      html = render_click(view, "cancel_delete", %{})
-      assert html =~ "Keep Me"
-      assert DefectReasons.count_defect_reasons() == 1
+      assert to == Paths.defect_reasons()
     end
   end
 
@@ -338,5 +260,36 @@ defmodule PhoenixKitManufacturing.Web.MachinesLiveTest do
       {:ok, _view2, html2} = live(conn2, "/en/admin/manufacturing/machines")
       assert html2 =~ "Manufacturer"
     end
+  end
+
+  ## Helpers
+
+  # `machine_type` CRUD moved to the generic entities admin UI (see
+  # `Machines` moduledoc) — tests that need one build it directly against
+  # `phoenix_kit_entities`'s own API, same pattern as `MachinesTest`'s and
+  # `MachineFormLiveTest`'s identically-named private helpers. Callers
+  # must have already started `EntitiesRegistry` (`start_supervised!/1`)
+  # — this always ends with a synchronous `reload/0` so `MachinesLive`
+  # (which reads type names through the registry, not the DB directly)
+  # sees the fixture by the time `live/2` mounts.
+  defp create_machine_type!(attrs) do
+    entity =
+      Entities.get_entity_by_name("machine_type") ||
+        raise "machine_type entity not seeded — check Migrations.Machines V5"
+
+    name = Map.fetch!(attrs, :name)
+    primary = Multilang.primary_language()
+
+    {:ok, record} =
+      EntityData.create(%{
+        entity_uuid: entity.uuid,
+        title: name,
+        status: Map.get(attrs, :status, "published"),
+        data: %{"_primary_language" => primary, primary => %{"_title" => name}},
+        metadata: %{"field_template" => Map.get(attrs, :field_template, [])}
+      })
+
+    EntitiesRegistry.reload()
+    record
   end
 end
