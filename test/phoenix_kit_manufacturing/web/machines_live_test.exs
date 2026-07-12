@@ -275,7 +275,7 @@ defmodule PhoenixKitManufacturing.Web.MachinesLiveTest do
   defp create_machine_type!(attrs) do
     entity =
       Entities.get_entity_by_name("machine_type") ||
-        raise "machine_type entity not seeded — check Migrations.Machines V5"
+        raise "machine_type entity not seeded — check EntitiesRegistry blueprint provisioning"
 
     name = Map.fetch!(attrs, :name)
     primary = Multilang.primary_language()

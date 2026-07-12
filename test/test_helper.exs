@@ -21,7 +21,6 @@ support_dir = Path.expand("support", __DIR__)
 
 [
   "test_repo.ex",
-  "machines_migration.ex",
   "test_layouts.ex",
   "hooks.ex",
   "test_router.ex",
@@ -32,22 +31,22 @@ support_dir = Path.expand("support", __DIR__)
 ]
 |> Enum.each(&Code.require_file(&1, support_dir))
 
-# Start minimal PhoenixKit services *before* touching the database. The
-# module migration below (`Migrations.Machines.up/1`, via
-# `Ecto.Migrator.up/4` further down) provisions `phoenix_kit_entities`
-# blueprint records, and `PhoenixKitEntities.Entities.create_entity/2` /
-# `EntityData.create/2` unconditionally broadcast a PubSub event on
-# success (`PhoenixKitEntities.Events`, routed through
+# Start minimal PhoenixKit services *before* touching the database.
+# `EntitiesRegistry.init/1` (started, and immediately stopped again, once
+# below to seed its blueprint entities ahead of any per-test sandbox
+# transaction) calls `PhoenixKitEntities.Entities.create_entity/2` /
+# `EntityData.create/2`, both of which unconditionally broadcast a PubSub
+# event on success (`PhoenixKitEntities.Events`, routed through
 # `PhoenixKit.PubSub.Manager`). `Phoenix.PubSub.broadcast/3` raises
 # `ArgumentError` ("unknown registry: :phoenix_kit_internal_pubsub") when
 # that named PubSub isn't started yet — which, before this reorder, was
-# the case here (`PubSub.Manager` used to start *after* the migration ran
-# below), so every real-database `mix test` run hit that raise inside the
-# `try` block below, got caught by its `rescue`, and silently mis-reported
-# "could not connect to test database" — excluding every `:integration`
-# test even with Postgres up and reachable. `ModuleRegistry` has no such
-# ordering constraint but is started alongside it for the same reason the
-# two were already grouped together.
+# the case here (`PubSub.Manager` used to start *after* the provisioning
+# step ran below), so every real-database `mix test` run hit that raise
+# inside the `try` block below, got caught by its `rescue`, and silently
+# mis-reported "could not connect to test database" — excluding every
+# `:integration` test even with Postgres up and reachable. `ModuleRegistry`
+# has no such ordering constraint but is started alongside it for the same
+# reason the two were already grouped together.
 {:ok, _pid} = PhoenixKit.PubSub.Manager.start_link([])
 {:ok, _pid} = PhoenixKit.ModuleRegistry.start_link([])
 
@@ -105,25 +104,32 @@ repo_available =
     try do
       {:ok, _pid} = started
 
-      # Build the core schema by running core's versioned migrations, then
-      # apply this module's own tables via its migration_module. Both go
-      # through `Ecto.Migrator.up/4` — a fresh microsecond version each time,
-      # so re-runs no-op (the DDL is `IF NOT EXISTS`) without colliding. The
-      # module migration runs via a static wrapper module so
-      # `Ecto.Migration.execute/1` finds its runner process. Schema drift
-      # impossible by construction — no hand-rolled migration shim.
+      # Build the schema by running core's versioned migrations — as of
+      # core V143 this module ships no migrations of its own (see
+      # CLAUDE.md's "Database & migrations" section); `phoenix_kit_machines`
+      # and the rest of this module's runtime tables are created by the
+      # same call, core-owned. `ensure_current/2`'s DDL is `IF NOT
+      # EXISTS`-idempotent, so a re-run against an already-migrated
+      # database (a `mix test` rerun against a not-`test.reset`'d database)
+      # no-ops cleanly.
       PhoenixKit.Migration.ensure_current(PhoenixKitManufacturing.Test.Repo, log: false)
 
-      # `Migrations.Machines` V5's blueprint-entity provisioning requires a
-      # real `created_by_uuid` (`resolve_creator_uuid!/0` raises without
-      # one) — a freshly `createdb`'d test database has zero PhoenixKit
-      # users at this point, so seed exactly one before the module
-      # migration below runs. Guarded on `get_first_user_uuid/0` so this
-      # stays a no-op on the second and later `mix test` run against the
-      # same (not `test.reset`'d) database. Inserted directly (not via
-      # `Auth.register_user/2`) — no rate limiter or mailer is running yet
-      # this early in boot, and none of that ceremony matters for a row
-      # whose only purpose is to exist as a creator reference.
+      # `EntitiesRegistry.init/1`'s blueprint-entity provisioning
+      # (`provision_blueprints/0`) needs a real `created_by_uuid` — a
+      # freshly `createdb`'d test database has zero PhoenixKit users at
+      # this point, so seed exactly one before starting the registry
+      # below. Provisioning itself degrades gracefully with no users
+      # present (logs and defers to the next reload — see the registry's
+      # moduledoc), but several tests (e.g. `MachineTypeTemplateLiveTest`)
+      # look the blueprint entities up directly without ever starting
+      # `EntitiesRegistry` themselves, so we still want them to exist
+      # deterministically before any test runs. Guarded on
+      # `get_first_user_uuid/0` so this stays a no-op on the second and
+      # later `mix test` run against the same (not `test.reset`'d)
+      # database. Inserted directly (not via `Auth.register_user/2`) — no
+      # rate limiter or mailer is running yet this early in boot, and none
+      # of that ceremony matters for a row whose only purpose is to exist
+      # as a creator reference.
       if is_nil(PhoenixKit.Users.Auth.get_first_user_uuid()) do
         %PhoenixKit.Users.Auth.User{}
         |> Ecto.Changeset.cast(
@@ -136,12 +142,21 @@ repo_available =
         |> PhoenixKitManufacturing.Test.Repo.insert!()
       end
 
-      Ecto.Migrator.up(
-        PhoenixKitManufacturing.Test.Repo,
-        System.os_time(:microsecond),
-        PhoenixKitManufacturing.Test.MachinesMigration,
-        log: false
-      )
+      # Start-and-immediately-stop `EntitiesRegistry` once here, before the
+      # sandbox mode switch below: its `init/1` runs the same idempotent
+      # `provision_blueprints/0` a real host boot does, permanently
+      # committing the "machine_type" / "operation" / "defect_reason"
+      # blueprint entities (see the registry's moduledoc) while the
+      # connection is still unsandboxed — mirrors how the module's own
+      # now-removed migration used to seed them once, up front, for the
+      # whole suite (see `dev_docs/LEGACY_DATA_MIGRATION.md`). Stopped
+      # right away so its globally-registered process name
+      # (`GenServer.start_link(..., name: __MODULE__)`) is free for
+      # individual tests' own `start_supervised!(EntitiesRegistry)` calls —
+      # those find the blueprints already provisioned and no-op through
+      # `ensure_blueprint_entity/2`'s existing-entity branch.
+      {:ok, registry_pid} = PhoenixKitManufacturing.EntitiesRegistry.start_link([])
+      GenServer.stop(registry_pid)
 
       Ecto.Adapters.SQL.Sandbox.mode(PhoenixKitManufacturing.Test.Repo, :manual)
       true

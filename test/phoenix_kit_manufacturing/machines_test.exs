@@ -398,7 +398,7 @@ defmodule PhoenixKitManufacturing.MachinesTest do
   defp create_machine_type!(attrs) do
     entity =
       Entities.get_entity_by_name("machine_type") ||
-        raise "machine_type entity not seeded — check Migrations.Machines V5"
+        raise "machine_type entity not seeded — check EntitiesRegistry blueprint provisioning"
 
     name = Map.fetch!(attrs, :name)
     primary = Multilang.primary_language()
@@ -419,14 +419,14 @@ defmodule PhoenixKitManufacturing.MachinesTest do
   # Same rationale as `create_machine_type!/1` — `operation` CRUD moved to
   # the generic entities admin UI, so tests build the `operation`
   # `entity_data` record directly. `unit`/`base_time_norm_seconds` are
-  # non-translatable custom fields (see `Migrations.Machines`'
+  # non-translatable custom fields (see `EntitiesRegistry`'s
   # `@blueprint_directories`), so they land unprefixed in the
   # primary-language data block, not under a `_`-prefixed translatable key
   # (see `EntitiesRegistry`'s "Record shape" moduledoc).
   defp create_operation!(attrs) do
     entity =
       Entities.get_entity_by_name("operation") ||
-        raise "operation entity not seeded — check Migrations.Machines V5"
+        raise "operation entity not seeded — check EntitiesRegistry blueprint provisioning"
 
     name = Map.fetch!(attrs, :name)
     primary = Multilang.primary_language()

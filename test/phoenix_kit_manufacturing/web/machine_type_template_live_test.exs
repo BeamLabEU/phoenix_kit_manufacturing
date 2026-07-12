@@ -242,7 +242,7 @@ defmodule PhoenixKitManufacturing.Web.MachineTypeTemplateLiveTest do
   defp create_machine_type!(name, attrs \\ []) do
     entity =
       Entities.get_entity_by_name("machine_type") ||
-        raise "machine_type entity not seeded — check Migrations.Machines V5"
+        raise "machine_type entity not seeded — check EntitiesRegistry blueprint provisioning"
 
     primary = Multilang.primary_language()
 
@@ -265,7 +265,7 @@ defmodule PhoenixKitManufacturing.Web.MachineTypeTemplateLiveTest do
   defp create_operation!(name) do
     entity =
       Entities.get_entity_by_name("operation") ||
-        raise "operation entity not seeded — check Migrations.Machines V5"
+        raise "operation entity not seeded — check EntitiesRegistry blueprint provisioning"
 
     primary = Multilang.primary_language()
 

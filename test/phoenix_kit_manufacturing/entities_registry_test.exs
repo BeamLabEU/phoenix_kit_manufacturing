@@ -13,14 +13,15 @@ defmodule PhoenixKitManufacturing.EntitiesRegistryTest do
   setup do
     start_supervised!(EntitiesRegistry)
 
-    # `Migrations.Machines` V5 (run once, unsandboxed, by `test_helper.exs`
-    # before `ExUnit.start/1`) already seeds a permanent "machine_type" /
-    # "operation" / "defect_reason" blueprint entity into the test
+    # `EntitiesRegistry`'s own blueprint provisioning (run once, unsandboxed,
+    # by `test_helper.exs` before `ExUnit.start/1`, and again idempotently
+    # by `start_supervised!/1` just above) already seeded a permanent
+    # "machine_type" / "operation" / "defect_reason" entity into the test
     # database's real committed data — `Entities.create_entity/2` would hit
     # its `unique_constraint(:name)` and return `{:error, changeset}` if
     # called again with the same name here. Reuse the existing entity
-    # instead, same idempotent lookup the migration's own
-    # `ensure_blueprint_entity/2` does.
+    # instead, same idempotent lookup `ensure_blueprint_entity/2` itself
+    # does.
     machine_type = ensure_entity!("machine_type", [])
 
     operation =

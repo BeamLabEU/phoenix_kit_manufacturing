@@ -280,18 +280,6 @@ defmodule PhoenixKitManufacturingTest do
     end
   end
 
-  describe "migration_module/0" do
-    alias PhoenixKitManufacturing.Migrations.Machines, as: MachinesMigration
-
-    test "points at the module's own migration module" do
-      assert PhoenixKitManufacturing.migration_module() == MachinesMigration
-    end
-
-    test "the migration module declares a positive target version" do
-      assert MachinesMigration.current_version() >= 1
-    end
-  end
-
   describe "optional callbacks have defaults" do
     test "get_config/0 returns a map with :enabled" do
       config = PhoenixKitManufacturing.get_config()
