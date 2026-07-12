@@ -60,18 +60,23 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
 
   ## Dynamic `metadata` fields
 
-  Machine types can define a `field_template` (see `Schemas.MachineType`);
-  `Machines.merged_field_template/1` merges the templates of every linked
-  type into `@merged_template`, rendered as extra inputs named
-  `machine[metadata][KEY]` (raw `name=`, not `@form[:atom]` — `metadata` is
-  a freeform map keyed by whatever the linked types define, not a fixed
-  changeset field). Recomputed whenever the type selection changes.
+  Machine types can define a `field_template` — stored in the `machine_type`
+  entity-data record's `metadata["field_template"]` (see `EntitiesRegistry`'s
+  "Record shape" moduledoc section for why it lives in `metadata` rather
+  than `data`); `Machines.merged_field_template/1` merges the templates of
+  every linked, published type into `@merged_template`, rendered as extra
+  inputs named `machine[metadata][KEY]` (raw `name=`, not `@form[:atom]` —
+  `metadata` here is this *machine's* freeform value map, keyed by whatever
+  the linked types define, not a fixed changeset field — a different
+  `metadata` from the type record's own). Recomputed whenever the type
+  selection changes.
 
   ## Operations
 
-  Every active `Operation` in the directory (see `PhoenixKitManufacturing.Operations`)
-  can be linked to this machine, each link optionally overriding the
-  operation's own `base_time_norm_seconds` for this machine specifically.
+  Every published operation in the directory (see
+  `PhoenixKitManufacturing.EntitiesRegistry`) can be linked to this machine,
+  each link optionally overriding the operation's own
+  `base_time_norm_seconds` for this machine specifically.
   `@operation_overrides` is a `%{operation_uuid => time_norm_seconds | nil}`
   map — its *key set* is exactly which operations are linked, the same
   shape `Machines.linked_operation_overrides/1` returns and
@@ -138,8 +143,8 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
   import PhoenixKitManufacturing.Web.Components.FilesCard, only: [files_card_body: 1]
 
   alias PhoenixKitLocations.Web.Components.PlacePicker
-  alias PhoenixKitManufacturing.{Attachments, Comments, Errors, Machines, Operations, Paths}
-  alias PhoenixKitManufacturing.Schemas.{Machine, Operation}
+  alias PhoenixKitManufacturing.{Attachments, Comments, EntitiesRegistry, Errors, Machines, Paths}
+  alias PhoenixKitManufacturing.Schemas.Machine
   alias PhoenixKitManufacturing.Web.Components.CommentsPanel
 
   @statuses ~w(active maintenance repair mothballed decommissioned)
@@ -189,7 +194,7 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
       action: :new,
       active_tab: :general,
       machine: machine,
-      all_types: safe_list_types(),
+      all_types: safe_list_types(socket.assigns.locale),
       linked_type_uuids: MapSet.new(),
       merged_template: [],
       all_operations: [],
@@ -240,14 +245,15 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
   end
 
   defp assign_edit_buffer(socket, machine) do
+    locale = socket.assigns.locale
     linked_type_uuids = safe_linked_type_uuids(machine)
 
     socket
     |> assign(
-      all_types: safe_list_types(),
+      all_types: safe_list_types(locale),
       linked_type_uuids: MapSet.new(linked_type_uuids),
       merged_template: safe_merged_template(linked_type_uuids),
-      all_operations: safe_list_operations(),
+      all_operations: safe_list_operations(locale),
       operation_overrides: safe_operation_overrides(machine),
       location_uuid: machine.location_uuid,
       space_uuid: machine.space_uuid,
@@ -273,8 +279,8 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
       []
   end
 
-  defp safe_list_types do
-    Machines.list_machine_types(status: "active")
+  defp safe_list_types(locale) do
+    Machines.list_machine_types(locale: locale, status: "published")
   rescue
     error ->
       Logger.error("Failed to load machine types: #{inspect(error)}")
@@ -289,8 +295,8 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
       []
   end
 
-  defp safe_list_operations do
-    Operations.list_operations(status: "active")
+  defp safe_list_operations(locale) do
+    EntitiesRegistry.list(:operation, locale, status: "published")
   rescue
     error ->
       Logger.error("Failed to load operations: #{inspect(error)}")
@@ -574,8 +580,8 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
   end
 
   # `field_template` rows are string-keyed once round-tripped through the
-  # `field_template`/`merged_field_template` JSONB pipeline, same
-  # atom/string tolerance as `Schemas.MachineType`'s own row accessor.
+  # `metadata["field_template"]` JSONB pipeline (see
+  # `Machines.merged_field_template/1`) — tolerate both key styles anyway.
   defp template_row(row, atom_key) when is_map(row) do
     string_key = Atom.to_string(atom_key)
 
@@ -1007,7 +1013,7 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
   # `@operation_overrides` (see moduledoc) and is only ever read from
   # `phx-value-uuid` + the dedicated event's own payload, never from a
   # `"machine"`-params submit.
-  attr(:operation, Operation, required: true)
+  attr(:operation, :map, required: true)
   attr(:enabled?, :boolean, required: true)
   attr(:override, :integer, default: nil)
 
@@ -1037,7 +1043,7 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
     """
   end
 
-  defp operation_label(%Operation{name: name, unit: unit, base_time_norm_seconds: base}) do
+  defp operation_label(%{name: name, unit: unit, base_time_norm_seconds: base}) do
     hint = Enum.reject([blank_to_nil(unit), operation_base_hint(base)], &is_nil/1)
     if hint == [], do: name, else: "#{name} (#{Enum.join(hint, " · ")})"
   end
@@ -1045,10 +1051,10 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
   defp operation_base_hint(nil), do: nil
   defp operation_base_hint(seconds), do: gettext("base %{seconds}s", seconds: seconds)
 
-  defp operation_override_placeholder(%Operation{base_time_norm_seconds: nil}),
+  defp operation_override_placeholder(%{base_time_norm_seconds: nil}),
     do: gettext("Base")
 
-  defp operation_override_placeholder(%Operation{base_time_norm_seconds: seconds}),
+  defp operation_override_placeholder(%{base_time_norm_seconds: seconds}),
     do: gettext("Base: %{seconds}s", seconds: seconds)
 
   defp blank_to_nil(nil), do: nil

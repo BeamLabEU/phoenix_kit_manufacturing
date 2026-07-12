@@ -11,7 +11,10 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLiveTest do
   # message handling, and the new passport/dynamic-metadata fields.
   use PhoenixKitManufacturing.LiveCase
 
-  alias PhoenixKitManufacturing.{Machines, Operations}
+  alias PhoenixKit.Utils.Multilang
+  alias PhoenixKitEntities, as: Entities
+  alias PhoenixKitEntities.EntityData
+  alias PhoenixKitManufacturing.{EntitiesRegistry, Machines}
 
   defp new_path, do: "/en/admin/manufacturing/machines/new"
   defp edit_path(machine), do: "/en/admin/manufacturing/machines/#{machine.uuid}/edit"
@@ -237,7 +240,8 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLiveTest do
     end
 
     test "switching tabs preserves a pending (unsaved) type toggle", %{conn: conn} do
-      {:ok, type} = Machines.create_machine_type(%{name: "Lathe"})
+      start_supervised!(EntitiesRegistry)
+      type = create_machine_type!(%{name: "Lathe"})
       {:ok, machine} = Machines.create_machine(%{name: "CNC-53"})
 
       conn = put_test_scope(conn, fake_scope())
@@ -255,8 +259,10 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLiveTest do
 
   describe "dynamic metadata fields" do
     setup do
-      {:ok, type} =
-        Machines.create_machine_type(%{
+      start_supervised!(EntitiesRegistry)
+
+      type =
+        create_machine_type!(%{
           name: "CNC",
           field_template: [
             %{"key" => "power_kw", "label" => "Power", "type" => "number", "unit" => "kW"},
@@ -354,9 +360,13 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLiveTest do
   end
 
   describe "Operations tab" do
+    setup do
+      start_supervised!(EntitiesRegistry)
+      :ok
+    end
+
     test "never appears on a :new machine (single-page General only)", %{conn: conn} do
-      {:ok, _operation} =
-        Operations.create_operation(%{name: "Cutting", unit: "pcs", base_time_norm_seconds: 120})
+      _operation = create_operation!(%{name: "Cutting", unit: "pcs", base_time_norm_seconds: 120})
 
       conn = put_test_scope(conn, fake_scope())
       {:ok, _view, html} = live(conn, new_path())
@@ -364,7 +374,7 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLiveTest do
       refute html =~ "Toggle the operations this machine performs"
     end
 
-    test "the tab link is hidden on an edit machine when there are no active operations", %{
+    test "the tab link is hidden on an edit machine when there are no published operations", %{
       conn: conn
     } do
       {:ok, machine} = Machines.create_machine(%{name: "CNC-29"})
@@ -375,10 +385,12 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLiveTest do
     end
   end
 
-  describe "Operations tab with an active operation" do
+  describe "Operations tab with a published operation" do
     setup do
-      {:ok, operation} =
-        Operations.create_operation(%{
+      start_supervised!(EntitiesRegistry)
+
+      operation =
+        create_operation!(%{
           name: "Cutting",
           unit: "pcs",
           base_time_norm_seconds: 120
@@ -396,7 +408,7 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLiveTest do
       assert has_element?(view, "a", "Operations")
     end
 
-    test "renders every active operation, unchecked, with no override input", %{
+    test "renders every published operation, unchecked, with no override input", %{
       conn: conn,
       machine: machine,
       operation: operation
@@ -527,4 +539,67 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLiveTest do
       assert is_binary(render(view))
     end
   end
+
+  ## Helpers
+
+  # `machine_type`/`operation` CRUD moved to the generic entities admin UI
+  # (see `Machines` moduledoc) — tests that need a record build it directly
+  # against `phoenix_kit_entities`'s own API, same pattern as
+  # `MachinesTest`'s identically-named private helpers. Callers must have
+  # already started `EntitiesRegistry` (`start_supervised!/1`) — this always
+  # ends with a synchronous `reload/0` so `MachineFormLive`'s pickers (which
+  # read through the registry, not the DB directly) see the fixture by the
+  # time `live/2` mounts.
+  defp create_machine_type!(attrs) do
+    entity =
+      Entities.get_entity_by_name("machine_type") ||
+        raise "machine_type entity not seeded — check Migrations.Machines V5"
+
+    name = Map.fetch!(attrs, :name)
+    primary = Multilang.primary_language()
+
+    {:ok, record} =
+      EntityData.create(%{
+        entity_uuid: entity.uuid,
+        title: name,
+        status: Map.get(attrs, :status, "published"),
+        data: %{"_primary_language" => primary, primary => %{"_title" => name}},
+        metadata: %{"field_template" => Map.get(attrs, :field_template, [])}
+      })
+
+    EntitiesRegistry.reload()
+    record
+  end
+
+  # Same rationale as `create_machine_type!/1`. `unit`/`base_time_norm_seconds`
+  # are non-translatable custom fields, so they land unprefixed in the
+  # primary-language data block (see `EntitiesRegistry`'s "Record shape"
+  # moduledoc).
+  defp create_operation!(attrs) do
+    entity =
+      Entities.get_entity_by_name("operation") ||
+        raise "operation entity not seeded — check Migrations.Machines V5"
+
+    name = Map.fetch!(attrs, :name)
+    primary = Multilang.primary_language()
+
+    primary_block =
+      %{"_title" => name}
+      |> put_present("unit", Map.get(attrs, :unit))
+      |> put_present("base_time_norm_seconds", Map.get(attrs, :base_time_norm_seconds))
+
+    {:ok, record} =
+      EntityData.create(%{
+        entity_uuid: entity.uuid,
+        title: name,
+        status: Map.get(attrs, :status, "published"),
+        data: %{"_primary_language" => primary, primary => primary_block}
+      })
+
+    EntitiesRegistry.reload()
+    record
+  end
+
+  defp put_present(map, _key, nil), do: map
+  defp put_present(map, key, value), do: Map.put(map, key, value)
 end
