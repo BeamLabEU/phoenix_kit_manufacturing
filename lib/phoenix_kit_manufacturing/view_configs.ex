@@ -5,10 +5,10 @@ defmodule PhoenixKitManufacturing.ViewConfigs do
   active filters (see `PhoenixKitManufacturing.ColumnConfig` /
   `Web.ColumnManagement`).
 
-  A standalone module cannot add its own ad-hoc preferences table outside
-  the versioned `migration_module/0` convention (reopening
-  `Migrations.Machines` just for a preferences table is out of scope).
-  Instead this module stores a `%{"columns" => [...], "active_filters" =>
+  Core owns the module's tables now (see
+  `PhoenixKit.Migrations.Postgres.V143`); a standalone preferences table
+  would need its own core PR. Instead this module stores a
+  `%{"columns" => [...], "active_filters" =>
   [...]}`-shaped map as a JSON-encoded blob in `phoenix_kit_settings`
   (core's flat key-value table), one row per `(scope, user_uuid)` pair,
   keyed `"manufacturing_view_config:<scope>:<user_uuid>"`.

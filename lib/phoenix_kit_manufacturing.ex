@@ -11,9 +11,8 @@ defmodule PhoenixKitManufacturing do
   integration are planned in later milestones (see
   `dev_docs/DEVELOPMENT_PLAN.md`).
 
-  The module ships its own database tables via `migration_module/0`
-  (`PhoenixKitManufacturing.Migrations.Machines`); the host applies them by
-  running `mix phoenix_kit.update`.
+  Tables are created by PhoenixKit core (V143); the module ships no
+  migrations of its own.
   """
 
   use PhoenixKit.Module
@@ -75,9 +74,6 @@ defmodule PhoenixKitManufacturing do
 
   @impl PhoenixKit.Module
   def css_sources, do: [:phoenix_kit_manufacturing]
-
-  @impl PhoenixKit.Module
-  def migration_module, do: PhoenixKitManufacturing.Migrations.Machines
 
   @impl PhoenixKit.Module
   def children, do: [PhoenixKitManufacturing.EntitiesRegistry]

@@ -7,9 +7,9 @@ defmodule PhoenixKitManufacturing.EntitiesRegistry do
   consistent snapshot.
 
   Modeled 1:1 on `Andi.Orders.StatusRegistry`. The three "blueprint"
-  entities are provisioned by `PhoenixKitManufacturing.Migrations.Machines`
-  V5 (see `dev_docs/ENTITIES_MIGRATION_SPEC.md`); this registry only reads
-  them — it never creates entities or entity_data records.
+  entities are provisioned by this registry's own idempotent `init/1` — see
+  below (also `dev_docs/ENTITIES_MIGRATION_SPEC.md` for the original design
+  rationale).
 
   Not wired into `children/0` by this module alone — see
   `PhoenixKitManufacturing.children/0` for supervision-tree wiring.
