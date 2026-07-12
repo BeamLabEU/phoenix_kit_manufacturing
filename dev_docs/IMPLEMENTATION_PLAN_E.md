@@ -1,3 +1,11 @@
+<!-- РЕШЕНИЯ ОРКЕСТРАТОРА/ВЛАДЕЛЬЦА ПО ОТКРЫТЫМ ВОПРОСАМ (2026-07-12) -->
+> **Решения по открытым вопросам:**
+> 1. **field_template UI — МИНИ-РЕДАКТОР В МОДУЛЕ (решение владельца)**: новая задача **E18** — маленький LiveView «Шаблон полей» (скрытый tab-роут `manufacturing/machine-types/:uuid/template`, visible:false): переиспользовать существующий UI-паттерн строк {key,label,type,unit,required,options} из удаляемой machine_type_form_live, но читать/писать `data["field_template"]` ЗАПИСИ entities (EntityData.get + update, с валидацией validate_format ключей как сейчас). Ссылки на редактор: из списка записей generic-UI нельзя — поэтому из карточки станка (рядом с бейджем типа, для админа) и прямым роутом; задача также покрывает тест. Остальной CRUD типов — generic entities UI (вариант A сохраняется).
+> 2. Локаль-коды set_entity_translation — голые "ru"/"et" (боевой прецедент seed_order_status_entities).
+> 3. Согласование с мейнтейнером — подтверждено владельцем ранее (RFC одобрен).
+> 4. Пер-операционные ETS-лукапы в list_machine_operations — приемлемо (O(1), справочная кардинальность).
+> 5. Сортировка пикеров — position, тай-брейк по title (после сида position=0 у всех → фактически алфавит, дальше — drag-order entities UI).
+
 ## Прочитанные артефакты (протокол)
 
 `dev_docs/ENTITIES_MIGRATION_SPEC.md` (целиком, включая §2.5 и §5) · `machines.ex`, `operations.ex`, `defect_reasons.ex` · все 6 схем в `schemas/` · `migrations/machines.ex` (V1–V4) · `web/machine_form_live.ex`, `web/machines_live.ex` · `phoenix_kit_manufacturing.ex` (admin_tabs) · `errors.ex`, `paths.ex`, `column_config/machines.ex`, `gettext.ex`, `mix.exs` · андийские прецеденты `Andi.Orders.StatusRegistry`, `Andi.Orders.SuborderTypes`, `20260502155927_seed_order_status_entities.exs`, `20260502120100_seed_suborder_type_entity.exs`, `20260526062631_migrate_status_entities_to_multilang.exs` · API `phoenix_kit_entities.ex`, `entity_data.ex`, `events.ex`, `routes.ex` · `PhoenixKit.Utils.Multilang` / `MultilangForm` (подтверждён формат `data[lang]["_field"]`) · `PhoenixKit.ModuleRegistry.static_children/0` (механизм `children/0`).
