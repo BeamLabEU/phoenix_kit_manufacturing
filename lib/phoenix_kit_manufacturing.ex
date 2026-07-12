@@ -76,6 +76,9 @@ defmodule PhoenixKitManufacturing do
   def migration_module, do: PhoenixKitManufacturing.Migrations.Machines
 
   @impl PhoenixKit.Module
+  def children, do: [PhoenixKitManufacturing.EntitiesRegistry]
+
+  @impl PhoenixKit.Module
   def permission_metadata do
     %{
       key: module_key(),

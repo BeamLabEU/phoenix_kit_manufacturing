@@ -287,14 +287,19 @@ defmodule PhoenixKitManufacturingTest do
       assert Map.has_key?(config, :enabled)
     end
 
-    test "settings_tabs/0, user_dashboard_tabs/0, children/0 default to []" do
+    test "settings_tabs/0, user_dashboard_tabs/0 default to []" do
       assert PhoenixKitManufacturing.settings_tabs() == []
       assert PhoenixKitManufacturing.user_dashboard_tabs() == []
-      assert PhoenixKitManufacturing.children() == []
     end
 
     test "route_module/0 defaults to nil" do
       assert PhoenixKitManufacturing.route_module() == nil
+    end
+  end
+
+  describe "children/0" do
+    test "wires the EntitiesRegistry into the module's supervision tree" do
+      assert PhoenixKitManufacturing.children() == [PhoenixKitManufacturing.EntitiesRegistry]
     end
   end
 
