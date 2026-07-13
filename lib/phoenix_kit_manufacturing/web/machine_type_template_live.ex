@@ -147,8 +147,10 @@ defmodule PhoenixKitManufacturing.Web.MachineTypeTemplateLive do
   end
 
   def handle_event("remove_field_row", %{"index" => index}, socket) do
-    index = String.to_integer(index)
-    {:noreply, update(socket, :field_template_rows, &List.delete_at(&1, index))}
+    case Integer.parse(index) do
+      {i, ""} -> {:noreply, update(socket, :field_template_rows, &List.delete_at(&1, i))}
+      _ -> {:noreply, socket}
+    end
   end
 
   def handle_event("validate", params, socket) do
@@ -178,6 +180,11 @@ defmodule PhoenixKitManufacturing.Web.MachineTypeTemplateLive do
     # `stale.metadata` may be missing a key another process wrote after
     # mount. Falls back to `stale` itself if the record was hard-deleted
     # out from under this session in the meantime.
+    # Known limitation: this read-modify-write is not atomic. A concurrent
+    # save of a *different* metadata key (e.g. the generic entities form
+    # writing `trashed_from_status`) between this re-read and our update
+    # will clobber that key with the value from our fresh snapshot. Adding
+    # row-level versioning is out of scope; document if it becomes an issue.
     entity_data = EntityData.get(stale.uuid) || stale
     metadata = Map.put(entity_data.metadata || %{}, "field_template", rows)
 
@@ -238,11 +245,18 @@ defmodule PhoenixKitManufacturing.Web.MachineTypeTemplateLive do
 
   # `params["field_template"]` arrives as a map with numeric string keys
   # (`%{"0" => %{...}, "1" => %{...}}` — standard HTML indexed-field
-  # encoding), sorted here into row order.
+  # encoding), sorted here into row order. Entries whose index doesn't parse
+  # as a plain integer (e.g. client-tampered keys) are silently dropped.
   defp rows_from_params(params) when is_map(params) do
     params
-    |> Enum.sort_by(fn {index, _row} -> String.to_integer(index) end)
-    |> Enum.map(fn {_index, row} -> normalize_submitted_row(row) end)
+    |> Enum.flat_map(fn {index, row} ->
+      case Integer.parse(index) do
+        {i, ""} -> [{i, row}]
+        _ -> []
+      end
+    end)
+    |> Enum.sort_by(fn {i, _} -> i end)
+    |> Enum.map(fn {_, row} -> normalize_submitted_row(row) end)
   end
 
   defp rows_from_params(_params), do: []

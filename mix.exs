@@ -43,8 +43,7 @@ defmodule PhoenixKitManufacturing.MixProject do
       quality: ["format", "credo --strict", "dialyzer"],
       "quality.ci": ["format --check-formatted", "credo --strict", "dialyzer"],
       # Schema is applied by test/test_helper.exs on every `mix test` run via
-      # PhoenixKit.Migration.ensure_current/2 plus the module's own
-      # migration_module/0 — so there is no `ecto.migrate` step here.
+      # PhoenixKit.Migration.ensure_current/2 — so there is no `ecto.migrate` step here.
       "test.setup": ["ecto.create --quiet -r PhoenixKitManufacturing.Test.Repo"],
       "test.reset": [
         "ecto.drop --quiet -r PhoenixKitManufacturing.Test.Repo",
