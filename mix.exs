@@ -69,7 +69,7 @@ defmodule PhoenixKitManufacturing.MixProject do
 
   defp deps do
     [
-      pk_dep(:phoenix_kit, "~> 1.7.133"),
+      pk_dep(:phoenix_kit, "~> 1.7.189"),
       {:phoenix_live_view, "~> 1.1"},
       {:ex_doc, "~> 0.39", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},

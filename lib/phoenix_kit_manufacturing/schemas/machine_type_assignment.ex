@@ -2,6 +2,7 @@ defmodule PhoenixKitManufacturing.Schemas.MachineTypeAssignment do
   @moduledoc "Join table for the many-to-many between machines and machine types."
 
   use Ecto.Schema
+  use PhoenixKit.SchemaPrefix
   import Ecto.Changeset
 
   @type t :: %__MODULE__{}

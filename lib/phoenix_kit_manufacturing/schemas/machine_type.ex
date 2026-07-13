@@ -2,6 +2,7 @@ defmodule PhoenixKitManufacturing.Schemas.MachineType do
   @moduledoc "Schema for machine types (e.g., CNC, Milling, Press, Laser cutter)."
 
   use Ecto.Schema
+  use PhoenixKit.SchemaPrefix
   import Ecto.Changeset
 
   @type t :: %__MODULE__{}
