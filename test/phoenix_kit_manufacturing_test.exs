@@ -270,7 +270,7 @@ defmodule PhoenixKitManufacturingTest do
 
   describe "version/0" do
     test "matches the mix.exs version" do
-      assert PhoenixKitManufacturing.version() == "0.3.1"
+      assert PhoenixKitManufacturing.version() == "0.3.2"
     end
   end
 

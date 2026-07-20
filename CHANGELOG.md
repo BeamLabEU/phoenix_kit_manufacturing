@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.3.2 - 2026-07-20
+
+### Changed
+
+- `permission_metadata/0` now declares `gettext_backend`/`gettext_domain`, so
+  the "Manufacturing" row in the admin permissions matrix renders translated
+  in the UI locale, matching how `admin_tabs/0` already translates the
+  sidebar label ([PR #5](https://github.com/BeamLabEU/phoenix_kit_manufacturing/pull/5)).
+  Inert until a `phoenix_kit` release including core PR #651 is published and
+  pinned — the extra keys are silently ignored by every core version
+  published so far.
+- Bumped the `phoenix_kit` lock pin to the latest Hex release (`1.7.205`) and
+  cleaned an orphaned `beamlab_ex_aws_sqs` 4.0.0 lock entry left behind by
+  core renaming its internal SQS dependency key.
+
+### Fixed
+
+- Declaring `permission_metadata/0`'s new keys tripped `mix dialyzer`'s
+  callback-type check, since no published `phoenix_kit` version yet widens
+  `permission_meta()` to include them — added a scoped, explained
+  `.dialyzer_ignore.exs` entry to keep the gate green until core ships and
+  the lock is bumped past it. See the [PR #5
+  review](dev_docs/pull_requests/2026/5-permission-label-i18n/CLAUDE_REVIEW.md)
+  for the full timeline.
+
 ## 0.3.1 - 2026-07-17
 
 ### Fixed
