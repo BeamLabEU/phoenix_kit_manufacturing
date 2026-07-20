@@ -84,7 +84,11 @@ defmodule PhoenixKitManufacturing do
       key: module_key(),
       label: "Manufacturing",
       icon: "hero-wrench-screwdriver",
-      description: "Manufacturing machines and production orders"
+      description: "Manufacturing machines and production orders",
+      # Renders the label translated in the admin permissions matrix, the
+      # same way the sidebar tabs below translate theirs.
+      gettext_backend: PhoenixKitManufacturing.Gettext,
+      gettext_domain: "default"
     }
   end
 
