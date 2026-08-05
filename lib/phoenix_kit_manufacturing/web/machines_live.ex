@@ -74,8 +74,13 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
       sort_by: [
         default: "name",
         url_key: "sort",
+        # The sortable columns only — "types" is deliberately absent, since it
+        # declares sortable?: false and apply_sort/2 silently no-ops on it.
+        # Admitting it would let a shared ?sort=types link, or the column
+        # modal hiding the active sort column, leave the list unsorted with
+        # nothing selected in the sort control.
         in:
-          ~w(name code status location types manufacturer model manufacture_year commissioned_on warranty_until to_next_on)
+          ~w(name code status location manufacturer model manufacture_year commissioned_on warranty_until to_next_on)
       ],
       sort_dir: [default: :asc, cast: :atom, in: [:asc, :desc], url_key: "dir"]
     ]
@@ -148,7 +153,12 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
   @impl true
   def handle_url_state(_state, socket) do
     case socket.assigns[:live_action] do
-      :index -> assign_machines(socket)
+      # reload_machines/1, not assign_machines/1: this is now the first-paint
+      # load path as well as every search and sort, and it is the wrapper that
+      # carries the rescue. Without it an unmigrated host or a dropped
+      # connection turns the page into a 500 instead of an empty list with an
+      # error flash.
+      :index -> reload_machines(socket)
       _ -> socket
     end
   end
