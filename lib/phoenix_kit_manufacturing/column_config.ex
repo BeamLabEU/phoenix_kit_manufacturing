@@ -59,6 +59,20 @@ defmodule PhoenixKitManufacturing.ColumnConfig do
       @spec all_column_ids() :: [String.t()]
       def all_column_ids, do: Enum.map(columns(), & &1.id)
 
+      @doc """
+      Ids of the columns that declare `sortable?: true`, in registry order.
+
+      Separate from `all_column_ids/0` because a sort value can arrive from
+      outside the page — a shared `?sort=` link, or a fallback pushed after the
+      active sort column is hidden — and a non-sortable id accepted there leaves
+      the list unsorted with nothing selected in the sort control. Callers
+      whitelist against this rather than re-listing the sortable ids by hand, so
+      adding a sortable column can't leave a stale copy behind.
+      """
+      @spec sortable_column_ids() :: [String.t()]
+      def sortable_column_ids,
+        do: columns() |> Enum.filter(& &1.sortable?) |> Enum.map(& &1.id)
+
       @doc "Ordered list of column metadata maps. Used by the picker modal."
       @spec available_columns() :: [map()]
       def available_columns, do: columns()

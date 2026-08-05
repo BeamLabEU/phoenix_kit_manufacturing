@@ -103,6 +103,30 @@ defmodule PhoenixKitManufacturing.Web.MachinesLiveTest do
       desc_pos_zeta = :binary.match(html_desc, "Zeta") |> elem(0)
       assert desc_pos_zeta < desc_pos_alpha
     end
+
+    # Hiding the active sort column makes `__view_config_changed__/1` re-pick
+    # one. It has to land on a *sortable* visible column: "types" is first in
+    # the saved order but declares `sortable?: false`, so pushing it would only
+    # get sanitized back to the hidden "name" — leaving the list sorted by a
+    # column the user can't see and the sort control on an unrelated one.
+    test "hiding the sort column falls back to the first sortable visible column", %{conn: conn} do
+      {:ok, _} = Machines.create_machine(%{name: "Zeta", code: "AAA-001"})
+      {:ok, _} = Machines.create_machine(%{name: "Alpha", code: "ZZZ-999"})
+
+      conn = put_test_scope(conn, fake_scope())
+      {:ok, view, _html} = live(conn, "/en/admin/manufacturing/machines")
+
+      render_click(view, "show_column_modal", %{})
+
+      html =
+        render_submit(view, "update_table_columns", %{"column_order" => "types,code,status"})
+
+      # Sorted by "code" now, not the hidden "name" — otherwise Alpha (ZZZ-999)
+      # would still come first.
+      pos_aaa = :binary.match(html, "AAA-001") |> elem(0)
+      pos_zzz = :binary.match(html, "ZZZ-999") |> elem(0)
+      assert pos_aaa < pos_zzz
+    end
   end
 
   describe "machine form" do
@@ -230,6 +254,33 @@ defmodule PhoenixKitManufacturing.Web.MachinesLiveTest do
 
       assert html =~ "Broken Press"
       assert html =~ "Healthy Mill"
+    end
+
+    # "types" is the one non-sortable column, so with it alone visible there is
+    # no sortable column to fall back to and the sort stays where it is. That
+    # leaves `__view_config_changed__/1` with no URL change to make — and a
+    # `push_url_state` that resolves to the current state patches to the same
+    # query, which UrlState's `reload?/3` skips. The list has to be reloaded
+    # directly on that branch or the filter never reaches `@machines`.
+    test "a filter still narrows the list when no visible column is sortable", %{conn: conn} do
+      start_supervised!(EntitiesRegistry)
+      type = create_machine_type!(%{name: "Laser"})
+      {:ok, tagged} = Machines.create_machine(%{name: "Laser-01"})
+      {:ok, _} = Machines.sync_machine_types(tagged.uuid, [type.uuid])
+      {:ok, _} = Machines.create_machine(%{name: "Plain-02"})
+
+      conn = put_test_scope(conn, fake_scope())
+      {:ok, view, _html} = live(conn, "/en/admin/manufacturing/machines")
+
+      render_click(view, "show_column_modal", %{})
+      render_click(view, "toggle_filter", %{"column_id" => "types"})
+      render_submit(view, "update_table_columns", %{"column_order" => "types"})
+
+      html =
+        render_change(view, "set_filter_value", %{"column_id" => "types", "value" => "Laser"})
+
+      assert html =~ "Laser-01"
+      refute html =~ "Plain-02"
     end
 
     test "adding a column via the modal persists across a reload for the same user", %{

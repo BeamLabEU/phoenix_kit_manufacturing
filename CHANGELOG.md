@@ -2,6 +2,49 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.3.3 - 2026-08-05
+
+### Added
+
+- The machines list's search and sort now live in the query string (`?q=`,
+  `?sort=`, `?dir=`) via core's `PhoenixKitWeb.Live.UrlState`, so a filtered
+  list is a real URL — shareable, reload-proof, and Back returns to the
+  previous query instead of leaving the page
+  ([PR #6](https://github.com/BeamLabEU/phoenix_kit_manufacturing/pull/6)).
+  The list loads in `handle_url_state/2`, so first paint, a shared link and a
+  Back press all take one code path. Per-column filter values deliberately
+  stay out of the URL — compound values need a nested encoding that hasn't
+  been designed yet.
+- `ColumnConfig.sortable_column_ids/0`, alongside the existing
+  `all_column_ids/0`.
+
+### Fixed
+
+- A column-modal save or a filter change could leave the machines list stale
+  when the active sort column was hidden: `__view_config_changed__/1` relied
+  on the resulting URL patch to reload, but a patch that resolves to the
+  current state is skipped by `UrlState.reload?/3`, and nothing else
+  recomputed the list. It now reloads directly when there is no URL change to
+  make.
+- The sort fallback for a hidden sort column picked the first *visible*
+  column, which can be the non-sortable `types` — sanitized back to the
+  hidden `name`, leaving the list sorted by an invisible column with the sort
+  control sitting on an unrelated one. It now picks the first *sortable*
+  visible column.
+- The `?sort=` whitelist is derived from `ColumnConfig.Machines` at compile
+  time instead of being a hand-copied second list, so adding a sortable
+  column can no longer silently leave its header un-clickable.
+
+### Changed
+
+- Bumped the `phoenix_kit` lock pin to `1.7.231` and dropped eight lock
+  entries orphaned by the upgrade (`igniter` and its transitive deps).
+- Removed the `.dialyzer_ignore.exs` entry for `permission_metadata/0`'s
+  `callback_type_mismatch`: `phoenix_kit` 1.7.231 ships core PR #651, which
+  widens `permission_meta()` to accept `gettext_backend`/`gettext_domain`, so
+  the permission-label translation added in 0.3.2 is now live rather than
+  inert.
+
 ## 0.3.2 - 2026-07-20
 
 ### Changed

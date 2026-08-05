@@ -52,6 +52,26 @@ defmodule PhoenixKitManufacturing.ColumnConfig.MachinesTest do
     assert "types" in C.all_column_ids()
   end
 
+  # "types" is the only non-sortable column. Spelled out here rather than
+  # derived, so adding a sortable column is a deliberate edit in both places
+  # — this list is what `MachinesLive` whitelists `?sort=` against.
+  test "sortable_column_ids/0 is every column except types" do
+    assert C.sortable_column_ids() == [
+             "name",
+             "code",
+             "status",
+             "location",
+             "manufacturer",
+             "model",
+             "manufacture_year",
+             "commissioned_on",
+             "warranty_until",
+             "to_next_on"
+           ]
+
+    refute "types" in C.sortable_column_ids()
+  end
+
   test "validate_columns/1 drops unknown ids, keeps order" do
     assert C.validate_columns(["code", "bogus", "name"]) == ["code", "name"]
   end

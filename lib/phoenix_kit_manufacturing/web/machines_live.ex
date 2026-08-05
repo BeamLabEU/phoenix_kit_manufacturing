@@ -11,10 +11,10 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
     * `:types` / `:operations` / `:defect_reasons` — redirect-only, as of
       the entities migration (`dev_docs/ENTITIES_MIGRATION_SPEC.md`).
       `machine_type`/`operation`/`defect_reason` CRUD now lives on the
-      generic entities admin UI, so `load_data/2` immediately
+      generic entities admin UI, so `handle_params/3` immediately
       `push_navigate`s to the matching `/admin/entities/:slug/data` page
       (`Paths.types/0` / `.operations/0` / `.defect_reasons/0`) instead of
-      rendering a list of its own — see `load_data/2`'s redirect clause.
+      rendering a list of its own — see `handle_params/3`'s redirect clause.
 
   Admin-chrome pattern: self-wrapping render with `LayoutWrapper.app_layout`
   so the active subtab's name/description land in the global admin header
@@ -74,13 +74,16 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
       sort_by: [
         default: "name",
         url_key: "sort",
-        # The sortable columns only — "types" is deliberately absent, since it
-        # declares sortable?: false and apply_sort/2 silently no-ops on it.
-        # Admitting it would let a shared ?sort=types link, or the column
-        # modal hiding the active sort column, leave the list unsorted with
-        # nothing selected in the sort control.
-        in:
-          ~w(name code status location manufacturer model manufacture_year commissioned_on warranty_until to_next_on)
+        # The sortable columns only — "types" declares sortable?: false and
+        # apply_sort/2 silently no-ops on it, so admitting it would let a shared
+        # ?sort=types link leave the list unsorted with nothing selected in the
+        # sort control. Read off the column registry at compile time rather than
+        # re-listed here: a hand-copied whitelist drifts the moment a sortable
+        # column is added, and the symptom — clicking that column's header does
+        # nothing, because UrlState sanitizes the pushed value back to the
+        # default — points nowhere near this list. (Fully qualified: the aliases
+        # below are established after this `use`.)
+        in: PhoenixKitManufacturing.ColumnConfig.Machines.sortable_column_ids()
       ],
       sort_dir: [default: :asc, cast: :atom, in: [:asc, :desc], url_key: "dir"]
     ]
@@ -221,21 +224,46 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
   # the fallback here is "name" (Machines' primary sortable identifier),
   # not inventories' "number".
   def __view_config_changed__(socket) do
-    # A hidden sort column has to be re-picked through the URL, not with a bare
-    # assign. push_url_state merges the new sort onto the URL state map, so an
-    # assign alone leaves ?sort= naming the column that was just hidden — and a
-    # reload sorts by it again, invisibly.
-    if socket.assigns.sort_by in socket.assigns.selected_columns do
-      assign_machines(socket)
+    next_sort_by = next_sort_by(socket.assigns)
+
+    if next_sort_by == socket.assigns.sort_by do
+      # Nothing for the URL to say. Reload here, because `push_url_state` with
+      # an unchanged state patches to the same query, and UrlState's `reload?/3`
+      # then skips `handle_url_state/2` — the filter the user just typed would
+      # never reach `@machines`.
+      reload_machines(socket)
     else
-      push_url_state(socket, sort_by: List.first(socket.assigns.selected_columns) || "name")
+      # A hidden sort column has to be re-picked through the URL, not with a
+      # bare assign. push_url_state merges the new sort onto the URL state map,
+      # so an assign alone leaves ?sort= naming the column that was just hidden
+      # — and a reload sorts by it again, invisibly. The patch it triggers is
+      # what reloads the list here.
+      push_url_state(socket, sort_by: next_sort_by)
+    end
+  end
+
+  # The sort column a view-config change leaves the list on: the current one
+  # while it is still visible, otherwise the first *sortable* visible column.
+  # Not simply `List.first(selected_columns)` — that one can be "types", which
+  # UrlState rejects (it isn't in the whitelist above) and rewrites to "name",
+  # a column that is itself hidden in this branch. The list would then sort by
+  # something the user can't see, `sortable_visible/1` would offer no matching
+  # `<option>`, and the sort control would sit on an unrelated column.
+  defp next_sort_by(%{sort_by: sort_by, selected_columns: selected}) do
+    if sort_by in selected do
+      sort_by
+    else
+      case sortable_visible(selected) do
+        [%{id: id} | _] -> id
+        [] -> "name"
+      end
     end
   end
 
   # Redirect-only live_actions (see moduledoc) never actually render, so
   # the exact string doesn't matter — but `handle_params/3` calls this for
-  # every action, including those, before `load_data/2` gets a chance to
-  # redirect. A single catch-all (rather than one clause per live_action)
+  # every action, including those, before its own `push_navigate` gets a
+  # chance to redirect. A single catch-all (rather than one clause per action)
   # avoids a `FunctionClauseError` on that call without pretending the
   # returned title is ever shown for anything but `:index`.
   defp tab_title(_action), do: gettext("Machines")
@@ -248,12 +276,13 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
 
   # ── Machines pipeline (search + column filters + sort) ───────────
 
-  # Rescue-wrapped `assign_machines/1` — shared by `load_data/2`'s initial
-  # `:index` load and the `handle_info/2` machine_type-broadcast clauses
-  # below, so a DB hiccup on either path degrades with a flash instead of
-  # crashing the LiveView (same guarantee moduledoc's "LiveViews wrap
-  # context reads in rescue" convention calls for everywhere else in this
-  # module).
+  # Rescue-wrapped `assign_machines/1` — shared by `handle_url_state/2` (the
+  # first-paint load as well as every search and sort), the
+  # `__view_config_changed__/1` filter path, and the `handle_info/2`
+  # machine_type-broadcast clauses below, so a DB hiccup on any of them
+  # degrades with a flash instead of crashing the LiveView (same guarantee
+  # moduledoc's "LiveViews wrap context reads in rescue" convention calls for
+  # everywhere else in this module).
   defp reload_machines(socket) do
     assign_machines(socket)
   rescue
