@@ -65,6 +65,26 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
     column_config: PhoenixKitManufacturing.ColumnConfig.Machines,
     scope: "manufacturing_machines"
 
+  # Search and sort live in the query string so a filtered list is a real URL:
+  # shareable, reload-proof, and Back returns to the previous query instead of
+  # leaving the page.
+  use PhoenixKitWeb.Live.UrlState,
+    params: [
+      search: [default: "", url_key: "q"],
+      sort_by: [
+        default: "name",
+        url_key: "sort",
+        # The sortable columns only — "types" is deliberately absent, since it
+        # declares sortable?: false and apply_sort/2 silently no-ops on it.
+        # Admitting it would let a shared ?sort=types link, or the column
+        # modal hiding the active sort column, leave the list unsorted with
+        # nothing selected in the sort control.
+        in:
+          ~w(name code status location manufacturer model manufacture_year commissioned_on warranty_until to_next_on)
+      ],
+      sort_dir: [default: :asc, cast: :atom, in: [:asc, :desc], url_key: "dir"]
+    ]
+
   require Logger
 
   import PhoenixKitWeb.Components.Core.Icon
@@ -101,29 +121,46 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
 
     if connected?(socket), do: subscribe_to_machine_type_changes()
 
-    {:ok,
-     assign(socket,
-       page_title: gettext("Machines"),
-       page_subtitle: tab_subtitle(:index),
-       machines: [],
-       confirm_delete: nil,
-       locale: socket.assigns[:current_locale] || Gettext.get_locale(),
-       current_user_uuid: user_uuid,
-       search: "",
-       sort_by: "name",
-       sort_dir: :asc,
-       # Safe defaults for column-management assigns — overwritten by
-       # assign_column_state/2 in load_data/2 when live_action is :index.
-       # Present in mount so `:if`-guarded template sections that reference
-       # these never encounter a missing-assign error even if a connection
-       # is re-established mid-session.
-       selected_columns: [],
-       active_filters: [],
-       filter_values: %{},
-       show_column_modal: false,
-       temp_selected_columns: nil,
-       temp_active_filters: nil
-     )}
+    socket =
+      socket
+      |> assign(
+        page_title: gettext("Machines"),
+        page_subtitle: tab_subtitle(:index),
+        machines: [],
+        confirm_delete: nil,
+        locale: socket.assigns[:current_locale] || Gettext.get_locale(),
+        current_user_uuid: user_uuid,
+        # :search, :sort_by, and :sort_dir are assigned from the query string by
+        # UrlState before mount/3 runs — re-assigning them here would overwrite a
+        # shared link's state with defaults.
+        selected_columns: [],
+        active_filters: [],
+        filter_values: %{},
+        show_column_modal: false,
+        temp_selected_columns: nil,
+        temp_active_filters: nil
+      )
+      |> PhoenixKitManufacturing.Web.ColumnManagement.assign_column_state(MachineColumnConfig)
+
+    {:ok, socket}
+  end
+
+  # The machines list is loaded here rather than in mount/3 or handle_params/3:
+  # UrlState calls this after mount and on every change to the search/sort query
+  # string, so one code path serves the first render, a shared link, and the Back
+  # button alike. Skipped for non-:index live_actions, which redirect immediately
+  # in handle_params/3.
+  @impl true
+  def handle_url_state(_state, socket) do
+    case socket.assigns[:live_action] do
+      # reload_machines/1, not assign_machines/1: this is now the first-paint
+      # load path as well as every search and sort, and it is the wrapper that
+      # carries the rescue. Without it an unmigrated host or a dropped
+      # connection turns the page into a 500 instead of an empty list with an
+      # error flash.
+      :index -> reload_machines(socket)
+      _ -> socket
+    end
   end
 
   # Keeps an already-open :index page's `type_names` badges fresh when a
@@ -160,7 +197,19 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
       |> assign(:page_title, tab_title(action))
       |> assign(:page_subtitle, tab_subtitle(action))
       |> assign(:confirm_delete, nil)
-      |> load_data(action)
+
+    socket =
+      case action do
+        non_index when non_index in [:types, :operations, :defect_reasons] ->
+          push_navigate(socket, to: entities_redirect_path(non_index))
+
+        # :index, and anything a later route adds — the list itself is loaded
+        # by handle_url_state/2. The catch-all matters: the load_data/2 this
+        # replaced had a fallback clause, and without one a new live_action
+        # would take the page down with a CaseClauseError.
+        _ ->
+          socket
+      end
 
     {:noreply, socket}
   end
@@ -172,14 +221,15 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
   # the fallback here is "name" (Machines' primary sortable identifier),
   # not inventories' "number".
   def __view_config_changed__(socket) do
-    socket =
-      if socket.assigns.sort_by in socket.assigns.selected_columns do
-        socket
-      else
-        assign(socket, :sort_by, List.first(socket.assigns.selected_columns) || "name")
-      end
-
-    assign_machines(socket)
+    # A hidden sort column has to be re-picked through the URL, not with a bare
+    # assign. push_url_state merges the new sort onto the URL state map, so an
+    # assign alone leaves ?sort= naming the column that was just hidden — and a
+    # reload sorts by it again, invisibly.
+    if socket.assigns.sort_by in socket.assigns.selected_columns do
+      assign_machines(socket)
+    else
+      push_url_state(socket, sort_by: List.first(socket.assigns.selected_columns) || "name")
+    end
   end
 
   # Redirect-only live_actions (see moduledoc) never actually render, so
@@ -191,20 +241,6 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
   defp tab_title(_action), do: gettext("Machines")
 
   defp tab_subtitle(_action), do: gettext("Production equipment reference book.")
-
-  defp load_data(socket, :index) do
-    socket
-    |> PhoenixKitManufacturing.Web.ColumnManagement.assign_column_state(MachineColumnConfig)
-    |> reload_machines()
-  end
-
-  # `machine_type`/`operation`/`defect_reason` CRUD moved to the generic
-  # entities admin UI (see moduledoc) — these three subtabs no longer load
-  # or render anything of their own, they just hand off to the matching
-  # entities page.
-  defp load_data(socket, action) when action in [:types, :operations, :defect_reasons] do
-    push_navigate(socket, to: entities_redirect_path(action))
-  end
 
   defp entities_redirect_path(:types), do: Paths.types()
   defp entities_redirect_path(:operations), do: Paths.operations()
@@ -419,13 +455,15 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
 
   # ── Event handlers ──────────────────────────────────────────────
 
+  # `replace: true` — debounced box, so a typed-out query would otherwise leave
+  # one history entry per pause and Back would walk the search string backwards.
   @impl true
   def handle_event("search", %{"search" => search}, socket) do
-    {:noreply, socket |> assign(:search, search) |> assign_machines()}
+    {:noreply, push_url_state(socket, [search: search], replace: true)}
   end
 
   def handle_event("set_sort", %{"sort_by" => by}, socket) do
-    {:noreply, socket |> assign(:sort_by, parse_sort_by(by)) |> assign_machines()}
+    {:noreply, push_url_state(socket, sort_by: parse_sort_by(by))}
   end
 
   def handle_event("toggle_sort", %{"by" => by}, socket) do
@@ -436,13 +474,11 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
         do: {by_id, flip_dir(socket.assigns.sort_dir)},
         else: {by_id, default_dir(by_id)}
 
-    {:noreply,
-     socket |> assign(:sort_by, sort_by) |> assign(:sort_dir, sort_dir) |> assign_machines()}
+    {:noreply, push_url_state(socket, sort_by: sort_by, sort_dir: sort_dir)}
   end
 
   def handle_event("flip_sort_dir", _params, socket) do
-    {:noreply,
-     socket |> assign(:sort_dir, flip_dir(socket.assigns.sort_dir)) |> assign_machines()}
+    {:noreply, push_url_state(socket, sort_dir: flip_dir(socket.assigns.sort_dir))}
   end
 
   # Bulk-clears every filter value at once — the "Reset" button that
@@ -499,14 +535,14 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
        socket
        |> put_flash(:info, deleted_message(kind))
        |> assign(:confirm_delete, nil)
-       |> load_data(reload_action(kind))}
+       |> assign_machines()}
     else
       nil ->
         {:noreply,
          socket
          |> put_flash(:error, Errors.message(not_found_atom(kind)))
          |> assign(:confirm_delete, nil)
-         |> load_data(reload_action(kind))}
+         |> assign_machines()}
 
       {:error, reason} ->
         Logger.error("Failed to delete #{kind} #{uuid}: #{inspect(reason)}")
@@ -515,7 +551,7 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
          socket
          |> put_flash(:error, Errors.message(delete_failed_atom(kind)))
          |> assign(:confirm_delete, nil)
-         |> load_data(reload_action(kind))}
+         |> assign_machines()}
     end
   rescue
     error ->
@@ -537,8 +573,6 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
   defp not_found_atom(:machine), do: :machine_not_found
 
   defp delete_failed_atom(:machine), do: :machine_delete_failed
-
-  defp reload_action(:machine), do: :index
 
   defp actor_opts(socket) do
     case socket.assigns[:phoenix_kit_current_scope] do
