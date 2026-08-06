@@ -1,7 +1,7 @@
 defmodule PhoenixKitManufacturing.MixProject do
   use Mix.Project
 
-  @version "0.3.3"
+  @version "0.3.4"
   @source_url "https://github.com/BeamLabEU/phoenix_kit_manufacturing"
 
   def project do
@@ -75,16 +75,22 @@ defmodule PhoenixKitManufacturing.MixProject do
 
   defp deps do
     [
-      # The manufacturing DB tables ship in core migration V144 (renumbered
-      # from V143 at merge time), first published in phoenix_kit 1.7.190
-      # (1.7.189 tops out at V142); >= 1.7.189 would cover the runtime
-      # schema-prefix support, but the tables need 1.7.190.
-      # 1.7.231 is the floor: that release ships
-      # `PhoenixKitWeb.Live.UrlState`, which 1 LiveView file in this
-      # module `use`. Anything below it resolves a core with no such
-      # module, and the failure surfaces in the consumer's build.
+      # Every floor below names the release that first published the newest
+      # API this module compiles or calls against — a lower resolution in a
+      # consumer's build is a missing module, not a degraded feature.
+      #
+      # phoenix_kit: 1.7.231 ships `PhoenixKitWeb.Live.UrlState`, which
+      # `Web.MachinesLive` `use`s (the `on_mount` tuple is baked into the
+      # .beam, so a precompiled artefact fails on first mount rather than at
+      # compile time). Supersedes the older 1.7.190 floor, which covered
+      # migration V144 — the tables this module's schemas map to.
       pk_dep(:phoenix_kit, "~> 1.7.231"),
-      pk_dep(:phoenix_kit_comments, "~> 0.2"),
+      # phoenix_kit_comments: 0.2.8 ships `subscribe/2`/`unsubscribe/2` and
+      # the list form of `count_comments/3` (`Manufacturing.Comments`);
+      # 0.2.6 shipped `PhoenixKitComments.Embed`, which `Web.MachineFormLive`
+      # `use`s. The `Code.ensure_loaded?` guards in `Manufacturing.Comments`
+      # cover the module being absent, not an older one missing functions.
+      pk_dep(:phoenix_kit_comments, "~> 0.2.8"),
       pk_dep(:phoenix_kit_entities, "~> 0.2.7"),
       # PlacePicker / Spaces.full_path shipped in phoenix_kit_locations 0.3.0.
       # For unpublished local changes: PHOENIX_KIT_LOCATIONS_PATH=../phoenix_kit_locations.

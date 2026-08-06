@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.3.4 - 2026-08-06
+
+### Fixed
+
+- The published `phoenix_kit` requirement named a release older than this
+  module itself and permitted a core without `PhoenixKitWeb.Live.UrlState`,
+  which `Web.MachinesLive` `use`s. A consumer whose resolution landed below
+  1.7.231 got a package that fails to compile, or — with a precompiled
+  artefact, since the `on_mount` tuple is baked into the `.beam` — raises on
+  the first mount of the machines list. Floor raised to `~> 1.7.231`, the
+  release that first published `UrlState`
+  ([PR #7](https://github.com/BeamLabEU/phoenix_kit_manufacturing/pull/7)).
+- The `phoenix_kit_comments` requirement had the same defect and was two
+  releases further behind: `~> 0.2` permitted 0.2.0, but
+  `Web.MachineFormLive` `use`s `PhoenixKitComments.Embed` (0.2.6) and
+  `Manufacturing.Comments` calls `subscribe/2`, `unsubscribe/2` and the list
+  form of `count_comments/3` (all 0.2.8). The `Code.ensure_loaded?` guards
+  cover the module being absent, not an older one missing functions. Floor
+  raised to `~> 0.2.8`.
+
+### Internal
+
+- Post-merge review of #7:
+  `dev_docs/pull_requests/2026/7-core-version-floor/CLAUDE_REVIEW.md`.
+- `test/dependency_floors_test.exs` asserts each sibling dep's requirement
+  rejects the last release without the API this module uses and accepts the
+  first release with it, so a floor can no longer drift below an API in use.
+  No-ops for deps swapped to a local checkout via `<APP>_PATH`.
+
 ## 0.3.3 - 2026-08-05
 
 ### Added
