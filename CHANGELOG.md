@@ -2,6 +2,42 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.4.0 - 2026-08-10
+
+### Changed
+
+- **⚠️ Requires `phoenix_kit ~> 2.0`.** The core pin moved to `~> 2.0`, so this
+  release no longer resolves against core 1.7.
+
+  Core 2.0.0 squashes the migration chain into a single `V135` baseline and makes
+  V135 the chain's floor: `mix ecto.migrate` now *refuses* on a database below it
+  rather than migrating. Check `mix phoenix_kit.status` **before** upgrading. A
+  host below V135 must install `phoenix_kit 1.7.236` — the migration bridge, the
+  last release carrying the full pre-squash chain — migrate until the reported
+  version is at least V135, and only then move to 2.0.
+
+  This package does not call migration internals, so the change is the pin
+  itself.
+
+- Sibling pins raised in step, each to that package's first release requiring
+  core 2.0: `phoenix_kit_comments` → `~> 0.3`, `phoenix_kit_entities` → `~> 0.3`,
+  `phoenix_kit_locations` → `~> 0.4`. `phoenix_kit_comments` 0.3.0 is a
+  **security release** (stored XSS in comment bodies); see its CHANGELOG.
+- `test/dependency_floors_test.exs` reframed for the new contract. Its cases
+  asserted each requirement still *admitted* the release that first shipped the
+  API this module calls — true while every pin sat just above its marker, false
+  once the pins moved far above it. The half that still catches a real mistake
+  (a pin drifting back **down** past an API in use) is kept, and a new case
+  asserts every sibling pin resolves a core-2.0-era release.
+- `mix precommit` passes again. Three pre-existing credo findings were blocking
+  it: two too-deeply-nested filter closures in `ColumnConfig` extracted into
+  named helpers, and `ColumnConfig.Machines.columns/0` (cyclomatic complexity
+  16 — every column definition's anonymous functions count as branches) split
+  into `identity_columns/0` + `placement_columns/0` + `date_columns/0`, order
+  preserved. Two nested-module references aliased; the third is inside a
+  `__using__` macro where the fully-qualified name is required for hygiene, so
+  that one carries a targeted `credo:disable-for-next-line` instead.
+
 ## 0.3.4 - 2026-08-06
 
 ### Fixed

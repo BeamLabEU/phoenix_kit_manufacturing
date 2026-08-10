@@ -110,15 +110,16 @@ defmodule PhoenixKitManufacturing.ColumnConfig do
   def text_filter(get_fn) do
     fn entries, value ->
       query = value |> to_string() |> String.trim() |> String.downcase()
-
-      if query == "" do
-        entries
-      else
-        Enum.filter(entries, fn e ->
-          e |> get_fn.() |> to_string() |> String.downcase() |> String.contains?(query)
-        end)
-      end
+      apply_text_filter(entries, get_fn, query)
     end
+  end
+
+  defp apply_text_filter(entries, _get_fn, ""), do: entries
+
+  defp apply_text_filter(entries, get_fn, query) do
+    Enum.filter(entries, fn e ->
+      e |> get_fn.() |> to_string() |> String.downcase() |> String.contains?(query)
+    end)
   end
 
   def enum_filter(get_fn) do
@@ -132,16 +133,17 @@ defmodule PhoenixKitManufacturing.ColumnConfig do
     fn entries, value ->
       min = parse_number(Map.get(value || %{}, "min"))
       max = parse_number(Map.get(value || %{}, "max"))
-
-      if is_nil(min) and is_nil(max) do
-        entries
-      else
-        Enum.filter(entries, fn e ->
-          n = e |> get_fn.() |> to_number()
-          (is_nil(min) or n >= min) and (is_nil(max) or n <= max)
-        end)
-      end
+      apply_numeric_range(entries, get_fn, min, max)
     end
+  end
+
+  defp apply_numeric_range(entries, _get_fn, nil, nil), do: entries
+
+  defp apply_numeric_range(entries, get_fn, min, max) do
+    Enum.filter(entries, fn e ->
+      n = e |> get_fn.() |> to_number()
+      (is_nil(min) or n >= min) and (is_nil(max) or n <= max)
+    end)
   end
 
   def date_range_filter(get_fn) do

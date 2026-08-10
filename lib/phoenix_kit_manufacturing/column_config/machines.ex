@@ -21,7 +21,13 @@ defmodule PhoenixKitManufacturing.ColumnConfig.Machines do
 
   alias PhoenixKitManufacturing.Schemas.Machine
 
-  defp columns do
+  # Split into three groups purely to keep each function under credo's
+  # cyclomatic-complexity ceiling — the anonymous fns in each column
+  # definition each count as a branch. Order is preserved: identity,
+  # then placement/model, then dates.
+  defp columns, do: identity_columns() ++ placement_columns() ++ date_columns()
+
+  defp identity_columns do
     [
       %{
         id: "name",
@@ -59,7 +65,12 @@ defmodule PhoenixKitManufacturing.ColumnConfig.Machines do
         filter_type: :enum,
         filter_options: fn _entries -> Enum.map(Machine.statuses(), &{&1, status_label(&1)}) end,
         filter_apply: enum_filter(&(&1.status || ""))
-      },
+      }
+    ]
+  end
+
+  defp placement_columns do
+    [
       %{
         id: "location",
         label: fn -> gettext("Location") end,
@@ -106,7 +117,12 @@ defmodule PhoenixKitManufacturing.ColumnConfig.Machines do
         filterable?: true,
         filter_type: :text,
         filter_apply: text_filter(&(&1.model || ""))
-      },
+      }
+    ]
+  end
+
+  defp date_columns do
+    [
       %{
         id: "manufacture_year",
         label: fn -> gettext("Manufacture year") end,

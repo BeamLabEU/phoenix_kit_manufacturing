@@ -97,10 +97,12 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
 
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.URLSigner
+  alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKitEntities, as: Entities
   alias PhoenixKitEntities.Events
   alias PhoenixKitManufacturing.ColumnConfig.Machines, as: MachineColumnConfig
   alias PhoenixKitManufacturing.{EntitiesRegistry, Errors, Machines, Paths}
+  alias PhoenixKitManufacturing.Web.ColumnManagement
   alias PhoenixKitManufacturing.Web.Components.ColumnModal
 
   # Opt out of PhoenixKit's auto admin-chrome layout so this view self-wraps
@@ -119,7 +121,7 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
     # used for :current_user_uuid (view-config persistence keying), not for
     # activity-log attribution (that's `actor_opts/1`, unrelated).
     scope = socket.assigns[:phoenix_kit_current_scope]
-    current_user = scope && PhoenixKit.Users.Auth.Scope.user(scope)
+    current_user = scope && Scope.user(scope)
     user_uuid = current_user && current_user.uuid
 
     if connected?(socket), do: subscribe_to_machine_type_changes()
@@ -143,7 +145,7 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
         temp_selected_columns: nil,
         temp_active_filters: nil
       )
-      |> PhoenixKitManufacturing.Web.ColumnManagement.assign_column_state(MachineColumnConfig)
+      |> ColumnManagement.assign_column_state(MachineColumnConfig)
 
     {:ok, socket}
   end

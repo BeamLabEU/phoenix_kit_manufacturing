@@ -168,6 +168,10 @@ defmodule PhoenixKitManufacturing.Web.ColumnManagement do
 
         active_filters = socket.assigns.temp_active_filters || socket.assigns.active_filters
 
+        # Fully qualified on purpose: this is code injected into the CALLER by
+        # `__using__`, and the caller is not required to have aliased this
+        # module. An alias here would resolve in the wrong context.
+        # credo:disable-for-next-line Credo.Check.Design.AliasUsage
         PhoenixKitManufacturing.Web.ColumnManagement.save_view_config(
           socket,
           ordered,

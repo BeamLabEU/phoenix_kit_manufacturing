@@ -1,7 +1,7 @@
 defmodule PhoenixKitManufacturing.MixProject do
   use Mix.Project
 
-  @version "0.3.4"
+  @version "0.4.0"
   @source_url "https://github.com/BeamLabEU/phoenix_kit_manufacturing"
 
   def project do
@@ -84,17 +84,17 @@ defmodule PhoenixKitManufacturing.MixProject do
       # .beam, so a precompiled artefact fails on first mount rather than at
       # compile time). Supersedes the older 1.7.190 floor, which covered
       # migration V144 — the tables this module's schemas map to.
-      pk_dep(:phoenix_kit, "~> 1.7.231"),
+      pk_dep(:phoenix_kit, "~> 2.0"),
       # phoenix_kit_comments: 0.2.8 ships `subscribe/2`/`unsubscribe/2` and
       # the list form of `count_comments/3` (`Manufacturing.Comments`);
       # 0.2.6 shipped `PhoenixKitComments.Embed`, which `Web.MachineFormLive`
       # `use`s. The `Code.ensure_loaded?` guards in `Manufacturing.Comments`
       # cover the module being absent, not an older one missing functions.
-      pk_dep(:phoenix_kit_comments, "~> 0.2.8"),
-      pk_dep(:phoenix_kit_entities, "~> 0.2.7"),
+      pk_dep(:phoenix_kit_comments, "~> 0.3"),
+      pk_dep(:phoenix_kit_entities, "~> 0.3"),
       # PlacePicker / Spaces.full_path shipped in phoenix_kit_locations 0.3.0.
       # For unpublished local changes: PHOENIX_KIT_LOCATIONS_PATH=../phoenix_kit_locations.
-      pk_dep(:phoenix_kit_locations, "~> 0.3"),
+      pk_dep(:phoenix_kit_locations, "~> 0.4"),
       {:phoenix_live_view, "~> 1.1"},
       {:ex_doc, "~> 0.39", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},

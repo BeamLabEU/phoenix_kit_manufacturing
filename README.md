@@ -25,7 +25,7 @@ dashboard widgets, and staff/project links.
 Add to your host app's `mix.exs`:
 
 ```elixir
-{:phoenix_kit_manufacturing, "~> 0.2"}
+{:phoenix_kit_manufacturing, "~> 0.4"}
 ```
 
 Then apply the module's tables and enable it in **Admin → Modules**:
