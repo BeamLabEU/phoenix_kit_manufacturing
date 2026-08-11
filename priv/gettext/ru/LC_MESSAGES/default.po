@@ -125,7 +125,7 @@ msgstr "Описание"
 #: lib/phoenix_kit_manufacturing/web/machines_live.ex:751
 #, elixir-autogen, elixir-format
 msgid "Edit"
-msgstr "Изменить"
+msgstr "Редактировать"
 
 #: lib/phoenix_kit_manufacturing/web/machine_form_live.ex:321
 #, elixir-autogen, elixir-format
@@ -579,7 +579,7 @@ msgstr "Файлы станка"
 #: lib/phoenix_kit_manufacturing.ex:251
 #, elixir-format
 msgid "Machine Comments"
-msgstr "Комментарии станка"
+msgstr "Комментарии к станку"
 
 #: lib/phoenix_kit_manufacturing.ex:275
 #, elixir-format

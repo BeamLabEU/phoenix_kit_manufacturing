@@ -135,7 +135,7 @@ msgstr "Muuda %{name}"
 #: lib/phoenix_kit_manufacturing.ex:205
 #, elixir-format
 msgid "Edit Machine"
-msgstr "Muuda masin"
+msgstr "Muuda masinat"
 
 #: lib/phoenix_kit_manufacturing/errors.ex:28
 #, elixir-autogen, elixir-format
