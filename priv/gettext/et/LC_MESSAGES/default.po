@@ -581,6 +581,11 @@ msgstr "Masina failid"
 msgid "Machine Comments"
 msgstr "Masina kommentaarid"
 
+#: lib/phoenix_kit_manufacturing.ex:275
+#, elixir-format
+msgid "Machine Type Template"
+msgstr "Masinatüübi mall"
+
 #: lib/phoenix_kit_manufacturing/web/components/files_card.ex:144
 #, elixir-autogen, elixir-format
 msgid " or drag & drop"
