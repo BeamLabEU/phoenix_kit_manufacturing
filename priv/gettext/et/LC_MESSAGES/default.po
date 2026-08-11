@@ -135,7 +135,7 @@ msgstr "Muuda %{name}"
 #: lib/phoenix_kit_manufacturing.ex:205
 #, elixir-format
 msgid "Edit Machine"
-msgstr "Muuda masin"
+msgstr "Muuda masinat"
 
 #: lib/phoenix_kit_manufacturing/errors.ex:28
 #, elixir-autogen, elixir-format
@@ -580,6 +580,11 @@ msgstr "Masina failid"
 #, elixir-format
 msgid "Machine Comments"
 msgstr "Masina kommentaarid"
+
+#: lib/phoenix_kit_manufacturing.ex:275
+#, elixir-format
+msgid "Machine Type Template"
+msgstr "Masinatüübi mall"
 
 #: lib/phoenix_kit_manufacturing/web/components/files_card.ex:144
 #, elixir-autogen, elixir-format
