@@ -270,7 +270,12 @@ defmodule PhoenixKitManufacturingTest do
 
   describe "version/0" do
     test "matches the mix.exs version" do
-      assert PhoenixKitManufacturing.version() == "0.4.0"
+      # Derive rather than hardcode. `version/0` already reads
+      # `Mix.Project.config()[:version]` at compile time, so it cannot drift
+      # from mix.exs — but a literal here has to be remembered on every bump,
+      # and it was not: this asserted "0.4.0" through the 0.4.1 release, so
+      # the only thing it caught was its own staleness.
+      assert PhoenixKitManufacturing.version() == Mix.Project.config()[:version]
     end
   end
 
