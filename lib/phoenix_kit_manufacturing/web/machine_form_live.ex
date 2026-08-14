@@ -714,7 +714,7 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
                hold state that's still pending at save time (see moduledoc),
                so Save/Cancel live in one persistent footer below rather
                than being duplicated per tab. --%>
-          <.form :if={@active_tab != :comments} for={@form} phx-change="validate" phx-submit="save">
+          <.form :if={@active_tab != :comments} for={@form} id="machine-form" phx-change="validate" phx-submit="save">
             <div class="card bg-base-100 shadow-lg">
               <div class="card-body flex flex-col gap-5">
                 <%= if @active_tab == :general do %>

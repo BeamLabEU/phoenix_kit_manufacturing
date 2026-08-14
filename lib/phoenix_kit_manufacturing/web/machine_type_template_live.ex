@@ -359,7 +359,7 @@ defmodule PhoenixKitManufacturing.Web.MachineTypeTemplateLive do
     >
       <div class="flex flex-col w-full px-4 py-8 gap-6">
         <div class="max-w-screen-2xl mx-auto w-full">
-          <form phx-change="validate" phx-submit="save">
+          <form id="machine-type-template-form" phx-change="validate" phx-submit="save">
             <div class="card bg-base-100 shadow-lg">
               <div class="card-body flex flex-col gap-3">
                 <div class="flex items-center justify-between gap-2">

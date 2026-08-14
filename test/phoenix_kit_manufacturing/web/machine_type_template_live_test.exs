@@ -60,7 +60,7 @@ defmodule PhoenixKitManufacturing.Web.MachineTypeTemplateLiveTest do
 
       assert {:error, {:live_redirect, %{to: to}}} =
                view
-               |> form("form",
+               |> form("#machine-type-template-form",
                  field_template: %{
                    "0" => %{
                      "key" => "power_kw",
@@ -110,7 +110,7 @@ defmodule PhoenixKitManufacturing.Web.MachineTypeTemplateLiveTest do
 
       assert {:error, {:live_redirect, %{to: to}}} =
                view
-               |> form("form",
+               |> form("#machine-type-template-form",
                  field_template: %{
                    "0" => %{"key" => "rpm", "label" => "RPM", "type" => "number"}
                  }
@@ -136,7 +136,9 @@ defmodule PhoenixKitManufacturing.Web.MachineTypeTemplateLiveTest do
 
       render_click(view, "remove_field_row", %{"index" => "0"})
 
-      assert {:error, {:live_redirect, %{to: to}}} = view |> form("form", %{}) |> render_submit()
+      assert {:error, {:live_redirect, %{to: to}}} =
+               view |> form("#machine-type-template-form", %{}) |> render_submit()
+
       assert to == Paths.types()
 
       assert EntityData.get!(type.uuid).metadata["field_template"] == []
@@ -154,7 +156,7 @@ defmodule PhoenixKitManufacturing.Web.MachineTypeTemplateLiveTest do
 
       html =
         view
-        |> form("form",
+        |> form("#machine-type-template-form",
           field_template: %{
             "0" => %{"key" => "Bad Key!", "label" => "Bad", "type" => "text"}
           }
@@ -176,7 +178,7 @@ defmodule PhoenixKitManufacturing.Web.MachineTypeTemplateLiveTest do
 
       html =
         view
-        |> form("form",
+        |> form("#machine-type-template-form",
           field_template: %{
             "0" => %{"key" => "amps", "label" => "Amps", "type" => "number"},
             "1" => %{"key" => "amps", "label" => "Amps again", "type" => "number"}
@@ -200,14 +202,14 @@ defmodule PhoenixKitManufacturing.Web.MachineTypeTemplateLiveTest do
       # "Options" input is only rendered once `@row["type"] == "select"`,
       # see the LiveView's `field_template_row/1`), then submit it blank.
       view
-      |> form("form",
+      |> form("#machine-type-template-form",
         field_template: %{"0" => %{"key" => "voltage", "label" => "Voltage", "type" => "select"}}
       )
       |> render_change()
 
       html =
         view
-        |> form("form",
+        |> form("#machine-type-template-form",
           field_template: %{
             "0" => %{
               "key" => "voltage",

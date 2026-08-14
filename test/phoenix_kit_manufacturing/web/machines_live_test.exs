@@ -136,7 +136,7 @@ defmodule PhoenixKitManufacturing.Web.MachinesLiveTest do
 
       assert {:error, {:live_redirect, %{to: to}}} =
                view
-               |> form("form", machine: %{name: "New Mill", status: "active"})
+               |> form("#machine-form", machine: %{name: "New Mill", status: "active"})
                |> render_submit()
 
       assert to =~ "manufacturing/machines"
@@ -149,7 +149,7 @@ defmodule PhoenixKitManufacturing.Web.MachinesLiveTest do
 
       html =
         view
-        |> form("form", machine: %{name: "", status: "active"})
+        |> form("#machine-form", machine: %{name: "", status: "active"})
         |> render_submit()
 
       assert html =~ "can&#39;t be blank" or html =~ "can't be blank"

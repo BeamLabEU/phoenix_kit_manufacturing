@@ -37,7 +37,7 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLiveTest do
 
       assert {:error, {:live_redirect, _}} =
                view
-               |> form("form", machine: %{name: "Press-1", status: "repair"})
+               |> form("#machine-form", machine: %{name: "Press-1", status: "repair"})
                |> render_submit()
 
       assert [%{status: "repair"}] = Machines.list_machines()
@@ -53,7 +53,7 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLiveTest do
 
       assert {:error, {:live_redirect, _}} =
                view
-               |> form("form",
+               |> form("#machine-form",
                  machine: %{
                    name: "CNC-07",
                    status: "active",
@@ -158,7 +158,7 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLiveTest do
 
       assert {:error, {:live_redirect, _}} =
                view
-               |> form("form", machine: %{name: "CNC-12", status: "active"})
+               |> form("#machine-form", machine: %{name: "CNC-12", status: "active"})
                |> render_submit()
 
       updated = Machines.get_machine(machine.uuid)
@@ -326,7 +326,7 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLiveTest do
 
       html =
         view
-        |> form("form",
+        |> form("#machine-form",
           machine: %{name: "CNC-22", status: "active", metadata: %{"power_kw" => "7.5"}}
         )
         |> render_change()
@@ -353,7 +353,7 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLiveTest do
 
       assert {:error, {:live_redirect, _}} =
                view
-               |> form("form",
+               |> form("#machine-form",
                  machine: %{
                    name: "CNC-20",
                    status: "active",
@@ -390,7 +390,7 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLiveTest do
 
       assert {:error, {:live_redirect, _}} =
                view
-               |> form("form",
+               |> form("#machine-form",
                  machine: %{name: "CNC-21", status: "active", metadata: %{"power_kw" => "1"}}
                )
                |> render_submit()
@@ -492,7 +492,7 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLiveTest do
 
       assert {:error, {:live_redirect, _}} =
                view
-               |> form("form", machine: %{name: machine.name, status: "active"})
+               |> form("#machine-form", machine: %{name: machine.name, status: "active"})
                |> render_submit()
 
       assert Machines.linked_operation_overrides(machine.uuid) == %{operation.uuid => nil}
@@ -512,7 +512,7 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLiveTest do
 
       assert {:error, {:live_redirect, _}} =
                view
-               |> form("form", machine: %{name: machine.name, status: "active"})
+               |> form("#machine-form", machine: %{name: machine.name, status: "active"})
                |> render_submit()
 
       assert Machines.linked_operation_overrides(machine.uuid) == %{operation.uuid => 45}
@@ -533,7 +533,7 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLiveTest do
 
       assert {:error, {:live_redirect, _}} =
                view
-               |> form("form", machine: %{name: machine.name, status: "active"})
+               |> form("#machine-form", machine: %{name: machine.name, status: "active"})
                |> render_submit()
 
       assert Machines.linked_operation_overrides(machine.uuid) == %{operation.uuid => nil}
