@@ -941,7 +941,7 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
         name="value"
         value={@value || ""}
         placeholder={gettext("Contains...")}
-        class="input input-xs input-bordered w-32"
+        class="input input-xs w-32"
         phx-debounce="300"
       />
     </form>
@@ -960,7 +960,7 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
     ~H"""
     <form phx-change="set_filter_value" class="contents">
       <input type="hidden" name="column_id" value={@meta.id} />
-      <select name="value" class="select select-xs select-bordered">
+      <select name="value" class="select select-xs">
         <option value="" selected={@value in [nil, ""]}>{gettext("Any")}</option>
         <option
           :for={{val, label} <- @options}
@@ -987,7 +987,7 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
         name="value[min]"
         value={@min}
         placeholder={gettext("Min")}
-        class="input input-xs input-bordered w-20"
+        class="input input-xs w-20"
         phx-debounce="300"
       />
       <span class="text-xs text-base-content/40">–</span>
@@ -997,7 +997,7 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
         name="value[max]"
         value={@max}
         placeholder={gettext("Max")}
-        class="input input-xs input-bordered w-20"
+        class="input input-xs w-20"
         phx-debounce="300"
       />
     </form>
@@ -1011,9 +1011,9 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
     ~H"""
     <form phx-change="set_filter_value" class="contents">
       <input type="hidden" name="column_id" value={@meta.id} />
-      <input type="date" name="value[from]" value={@from} class="input input-xs input-bordered w-36" />
+      <input type="date" name="value[from]" value={@from} class="input input-xs w-36" />
       <span class="text-xs text-base-content/40">–</span>
-      <input type="date" name="value[to]" value={@to} class="input input-xs input-bordered w-36" />
+      <input type="date" name="value[to]" value={@to} class="input input-xs w-36" />
     </form>
     """
   end
