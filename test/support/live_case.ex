@@ -61,7 +61,11 @@ defmodule PhoenixKitManufacturing.LiveCase do
   The module's LiveViews attribute activity logs to
   `socket.assigns[:phoenix_kit_current_scope].user.uuid`. Core helpers such
   as `Scope.has_module_access?/2` pattern-match on
-  `%PhoenixKit.Users.Auth.Scope{}`, so a plain map won't satisfy them.
+  `%PhoenixKit.Users.Auth.Scope{}`, so a plain map won't satisfy them. The
+  `user` inside is a real `%PhoenixKit.Users.Auth.User{}` too — since
+  `phoenix_kit_comments` 0.4.7 the embedded `CommentsComponent` runs the
+  user through `PhoenixKit.Users.Roles.user_has_role_owner?/1`, which
+  heads on the struct.
 
   ## Options
 
@@ -79,7 +83,7 @@ defmodule PhoenixKitManufacturing.LiveCase do
     permissions = Keyword.get(opts, :permissions, ["manufacturing"])
     authenticated? = Keyword.get(opts, :authenticated?, true)
 
-    user = %{uuid: user_uuid, email: email}
+    user = %PhoenixKit.Users.Auth.User{uuid: user_uuid, email: email}
 
     %PhoenixKit.Users.Auth.Scope{
       user: user,

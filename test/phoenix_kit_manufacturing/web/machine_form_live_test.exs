@@ -492,7 +492,7 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLiveTest do
 
       assert {:error, {:live_redirect, _}} =
                view
-               |> form("#machine-form", machine: %{name: machine.name, status: "active"})
+               |> form("#machine-form", %{})
                |> render_submit()
 
       assert Machines.linked_operation_overrides(machine.uuid) == %{operation.uuid => nil}
@@ -512,7 +512,7 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLiveTest do
 
       assert {:error, {:live_redirect, _}} =
                view
-               |> form("#machine-form", machine: %{name: machine.name, status: "active"})
+               |> form("#machine-form", %{})
                |> render_submit()
 
       assert Machines.linked_operation_overrides(machine.uuid) == %{operation.uuid => 45}
@@ -533,7 +533,7 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLiveTest do
 
       assert {:error, {:live_redirect, _}} =
                view
-               |> form("#machine-form", machine: %{name: machine.name, status: "active"})
+               |> form("#machine-form", %{})
                |> render_submit()
 
       assert Machines.linked_operation_overrides(machine.uuid) == %{operation.uuid => nil}
@@ -552,6 +552,54 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLiveTest do
 
       assigns = :sys.get_state(view.pid).socket.assigns
       refute Map.has_key?(assigns.operation_overrides, operation.uuid)
+    end
+
+    # The Operations tab's controls live inside `#machine-form` but the tab
+    # renders no `machine[...]` inputs, so its `phx-change`/`phx-submit`
+    # payloads carry no `"machine"` key. Both used to crash the LiveView
+    # with a FunctionClauseError.
+    test "typing in an override input does not crash the form's validate", %{
+      conn: conn,
+      machine: machine,
+      operation: operation
+    } do
+      conn = put_test_scope(conn, fake_scope())
+      {:ok, view, _html} = live(conn, edit_path(machine))
+      render_patch(view, operations_path(machine))
+      render_click(view, "toggle_operation", %{"uuid" => operation.uuid})
+
+      html =
+        view
+        |> form("#machine-form", %{})
+        |> render_change(%{"operation_override_#{operation.uuid}" => "4"})
+
+      assert is_binary(html)
+      assert has_element?(view, "input[name='operation_override_#{operation.uuid}']")
+    end
+
+    test "General-tab edits typed before switching tabs survive a save from Operations", %{
+      conn: conn,
+      machine: machine,
+      operation: operation
+    } do
+      conn = put_test_scope(conn, fake_scope())
+      {:ok, view, _html} = live(conn, edit_path(machine))
+
+      view
+      |> form("#machine-form", machine: %{name: "CNC-Op renamed"})
+      |> render_change()
+
+      render_patch(view, operations_path(machine))
+      render_click(view, "toggle_operation", %{"uuid" => operation.uuid})
+      render_click(view, "set_operation_override", %{"uuid" => operation.uuid, "value" => "45"})
+
+      assert {:error, {:live_redirect, _}} =
+               view
+               |> form("#machine-form", %{})
+               |> render_submit()
+
+      assert %{name: "CNC-Op renamed"} = Machines.get_machine(machine.uuid)
+      assert Machines.linked_operation_overrides(machine.uuid) == %{operation.uuid => 45}
     end
 
     test "editing an existing machine preloads its linked operations and overrides", %{

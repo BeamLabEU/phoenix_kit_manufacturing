@@ -2,6 +2,40 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.4.2 - 2026-09-13
+
+### Fixed
+
+- **Saving or editing on the machine form's Operations / Files tab crashed the
+  LiveView.** Those tabs sit inside the same `#machine-form` as General but
+  render none of the `machine[...]` inputs, so their `phx-change` (typing in
+  a time-norm override, dropping a file) and `phx-submit` payloads carry no
+  `"machine"` key — and both handlers pattern-matched on it, raising a
+  `FunctionClauseError` on every keystroke and on Save. `validate` is now a
+  no-op there, and Save falls back to the params of the last General-tab
+  `validate`, so a name typed on General before switching tabs is saved
+  rather than dropped.
+
+- **Machines list per-column filter forms now carry stable ids**, so LiveView
+  can restore a half-typed filter after a reconnect (they were `phx-change`
+  forms with no `id`, which LiveView warns about).
+
+- **Test suite** against the current lock (`phoenix_kit` 2.23,
+  `phoenix_kit_comments` 0.4.7): the fake test scope now wraps a real
+  `%PhoenixKit.Users.Auth.User{}` (the embedded comments component runs it
+  through `Roles.user_has_role_owner?/1`, which heads on the struct), the
+  delete-flow test targets the table row menu instead of an ambiguous
+  selector that also matched the card view, and the Operations-tab tests
+  submit what the browser actually sends from that tab.
+
+### Changed
+
+- The manufacturing dashboard uses the full admin content width instead of
+  a centred 768px column (#11).
+- Dependency updates (`phoenix_kit` 2.23.0, `phoenix_kit_entities` 0.4.12,
+  `phoenix_kit_comments` 0.4.7, `phoenix_kit_locations` 0.4.2,
+  `phoenix_live_view` 1.2.11).
+
 ## 0.4.1 - 2026-08-11
 
 ### Fixed

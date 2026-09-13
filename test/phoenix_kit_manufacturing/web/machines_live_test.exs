@@ -163,8 +163,10 @@ defmodule PhoenixKitManufacturing.Web.MachinesLiveTest do
       conn = put_test_scope(conn, fake_scope())
       {:ok, view, _html} = live(conn, "/en/admin/manufacturing/machines")
 
+      # Each machine renders twice — a card (narrow screens) and a table
+      # row — so scope to the row menu's Delete, not any Delete for the uuid.
       view
-      |> element(~s{button[phx-value-uuid="#{machine.uuid}"][phx-value-type="machine"]})
+      |> element(~s{#machine-menu-#{machine.uuid} button[phx-value-type="machine"]})
       |> render_click()
 
       html = render_click(view, "delete_machine", %{})

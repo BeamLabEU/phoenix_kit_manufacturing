@@ -334,6 +334,14 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
     {:noreply, assign_form(socket, changeset)}
   end
 
+  # The Operations and Files tabs sit inside the same `#machine-form` but
+  # render none of the `machine[...]` inputs, so any change to one of their
+  # controls (an override input, the upload dropzone) fires this
+  # `phx-change` with no `"machine"` key. Nothing to validate — and
+  # re-casting `%{}` would wipe the pending General-tab edits kept in the
+  # changeset (see `load_existing/3`).
+  def handle_event("validate", _params, socket), do: {:noreply, socket}
+
   def handle_event("toggle_type", %{"uuid" => uuid}, socket) do
     linked = socket.assigns.linked_type_uuids
 
@@ -375,8 +383,13 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
     {:noreply, update(socket, :show_place_picker, &(!&1))}
   end
 
-  def handle_event("save", %{"machine" => params}, socket) do
-    save_machine(socket, socket.assigns.action, params)
+  # Save is submitted from whichever tab is open. The General tab posts the
+  # `machine[...]` fields; the Operations/Files tabs post none, so fall back
+  # to the params of the last `validate` — the General edits typed before
+  # the tab switch — instead of crashing (or saving `%{}` and dropping them).
+  def handle_event("save", params, socket) do
+    machine_params = Map.get(params, "machine", pending_machine_params(socket))
+    save_machine(socket, socket.assigns.action, machine_params)
   end
 
   # ── Attachments (featured image modal + inline files dropzone) ──
@@ -430,6 +443,15 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
     Logger.debug("[MachineFormLive] ignoring unrelated message: #{inspect(msg)}")
     {:noreply, socket}
   end
+
+  # `Ecto.Changeset.cast/4` always stores the params it was given, so after
+  # a `validate` this is exactly the last General-tab payload; a fresh
+  # `change_machine/1` changeset carries `%{}`.
+  defp pending_machine_params(%{assigns: %{form: %{source: %Ecto.Changeset{params: params}}}})
+       when is_map(params),
+       do: params
+
+  defp pending_machine_params(_socket), do: %{}
 
   defp save_machine(socket, :new, params) do
     case Machines.create_machine(prepare_params(params, socket), actor_opts(socket)) do

@@ -934,7 +934,7 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
 
   defp filter_input(%{meta: %{filter_type: :text}} = assigns) do
     ~H"""
-    <form phx-change="set_filter_value" class="contents">
+    <form id={"machines-filter-#{@meta.id}"} phx-change="set_filter_value" class="contents">
       <input type="hidden" name="column_id" value={@meta.id} />
       <input
         type="search"
@@ -958,7 +958,7 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
     assigns = assign(assigns, :options, options)
 
     ~H"""
-    <form phx-change="set_filter_value" class="contents">
+    <form id={"machines-filter-#{@meta.id}"} phx-change="set_filter_value" class="contents">
       <input type="hidden" name="column_id" value={@meta.id} />
       <select name="value" class="select select-xs">
         <option value="" selected={@value in [nil, ""]}>{gettext("Any")}</option>
@@ -979,7 +979,7 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
     assigns = assigns |> assign(:min, min) |> assign(:max, max)
 
     ~H"""
-    <form phx-change="set_filter_value" class="contents">
+    <form id={"machines-filter-#{@meta.id}"} phx-change="set_filter_value" class="contents">
       <input type="hidden" name="column_id" value={@meta.id} />
       <input
         type="number"
@@ -1009,7 +1009,7 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
     assigns = assigns |> assign(:from, from) |> assign(:to, to)
 
     ~H"""
-    <form phx-change="set_filter_value" class="contents">
+    <form id={"machines-filter-#{@meta.id}"} phx-change="set_filter_value" class="contents">
       <input type="hidden" name="column_id" value={@meta.id} />
       <input type="date" name="value[from]" value={@from} class="input input-xs w-36" />
       <span class="text-xs text-base-content/40">–</span>
