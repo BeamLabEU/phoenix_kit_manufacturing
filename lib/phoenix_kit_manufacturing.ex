@@ -75,6 +75,12 @@ defmodule PhoenixKitManufacturing do
   @impl PhoenixKit.Module
   def css_sources, do: [:phoenix_kit_manufacturing]
 
+  @doc """
+  Supervision-tree wiring: PhoenixKit starts `EntitiesRegistry` (the ETS+PubSub
+  cache over `phoenix_kit_entities` for `machine_type`/`operation`/
+  `defect_reason` — see `PhoenixKitManufacturing.EntitiesRegistry`) under its
+  own supervisor at boot.
+  """
   @impl PhoenixKit.Module
   def children, do: [PhoenixKitManufacturing.EntitiesRegistry]
 
@@ -92,6 +98,12 @@ defmodule PhoenixKitManufacturing do
     }
   end
 
+  @doc """
+  Registers the module's admin sidebar tabs (and the hidden CRUD routes for
+  the machine card's Operations/Files/Comments subtabs and the machine type
+  template mini-editor). PhoenixKit generates routes at compile time from
+  each tab's `live_view:` field.
+  """
   @impl PhoenixKit.Module
   def admin_tabs do
     [
