@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- Attachment folders (machines) can be created under a host-configured
+  parent folder instead of always landing at the storage root:
+  `config :phoenix_kit_manufacturing, :attachments_parent_folder, {Mod, :fun}`,
+  called as `fun.(scope_or_resource, actor_uuid)` and returning
+  `{:ok, parent_folder_uuid}` or `nil`. Folder lookups by name now check the
+  parent first and the root second, so folders created before the setting
+  is turned on are still found. No behaviour change without the config.
+
 ## 0.4.2 - 2026-09-13
 
 ### Fixed
