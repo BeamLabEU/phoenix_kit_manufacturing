@@ -2,17 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 0.4.3 - 2026-09-14
 
 ### Added
 
 - Attachment folders (machines) can be created under a host-configured
   parent folder instead of always landing at the storage root:
   `config :phoenix_kit_manufacturing, :attachments_parent_folder, {Mod, :fun}`,
-  called as `fun.(scope_or_resource, actor_uuid)` and returning
+  called as `Mod.fun("machine", actor_uuid)` and returning
   `{:ok, parent_folder_uuid}` or `nil`. Folder lookups by name now check the
   parent first and the root second, so folders created before the setting
   is turned on are still found. No behaviour change without the config.
+  A hook that raises is logged and falls back to the root instead of
+  crashing the machine form.
+
+### Changed
+
+- Updated dependencies: `phoenix` 1.8.14, `phoenix_kit` 2.23.1,
+  `phoenix_kit_entities` 0.4.13, `beamlab_countries` 1.2.1.
 
 ## 0.4.2 - 2026-09-13
 

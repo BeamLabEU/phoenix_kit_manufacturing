@@ -402,10 +402,11 @@ defmodule PhoenixKitManufacturing.Attachments do
     with {:ok, target_name} <- folder_name_for(resource),
          %{} = folder <- Storage.get_folder(folder_uuid),
          current_name when current_name != target_name <- folder.name do
-      case Storage.update_folder(folder, %{
-             name: target_name,
-             parent_uuid: parent_folder_uuid(resource, nil)
-           }) do
+      # Rename only — no `parent_uuid` key. `Storage.update_folder/2` treats
+      # an explicit `parent_uuid` (even `nil`) as a move, and the pending
+      # folder was already created under the right parent by `ensure_folder/2`,
+      # which had the real actor; re-resolving here (no actor) could move it.
+      case Storage.update_folder(folder, %{name: target_name}) do
         {:ok, _} ->
           :ok
 
@@ -434,7 +435,8 @@ defmodule PhoenixKitManufacturing.Attachments do
 
   @doc false
   # Host-configured parent folder; `nil` = storage root (default).
-  # Accepts the scope string ("machine") or the resource struct.
+  # Accepts the resource type string ("machine") or the resource struct.
+  # A raising hook degrades to the root rather than crashing the LiveView.
   def parent_folder_uuid(%Machine{}, actor_uuid), do: parent_folder_uuid("machine", actor_uuid)
 
   def parent_folder_uuid(scope, actor_uuid) when is_binary(scope) do
@@ -448,6 +450,10 @@ defmodule PhoenixKitManufacturing.Attachments do
       _ ->
         nil
     end
+  rescue
+    error ->
+      Logger.warning("attachments_parent_folder hook failed for #{scope}: #{inspect(error)}")
+      nil
   end
 
   def parent_folder_uuid(_, _), do: nil
@@ -560,7 +566,9 @@ defmodule PhoenixKitManufacturing.Attachments do
         {:ok, uuid, socket}
 
       _ ->
-        parent_uuid = parent_folder_uuid(scope, current_user_uuid(socket))
+        # Resolve by resource type, not the scope key — scope keys are opaque
+        # (a resource id or draft id is allowed), the hook expects "machine".
+        parent_uuid = parent_folder_uuid(st.resource || scope, current_user_uuid(socket))
 
         case folder_name_for(st.resource) do
           {:ok, name} -> find_or_create_folder(socket, scope, name, parent_uuid)
