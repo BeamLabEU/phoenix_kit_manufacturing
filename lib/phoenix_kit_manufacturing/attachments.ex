@@ -58,6 +58,18 @@ defmodule PhoenixKitManufacturing.Attachments do
   Each scope's resource carries a `data` JSONB with
   `files_folder_uuid` and `featured_image_uuid` keys. Add a clause
   to `folder_name_for/1` to support additional resource structs.
+
+  ## Parent folder
+
+  By default resource folders are created at the storage root. A host can
+  group them under per-type containers:
+
+      config :phoenix_kit_manufacturing, :attachments_parent_folder, {MyApp.Media, :for_manufacturing}
+
+  called as `for_manufacturing("machine", actor_uuid)`, returning
+  `{:ok, parent_folder_uuid}` or `nil` (root). Lookups by name check the
+  parent first and the root second, so folders that predate the setting
+  are still found.
   """
 
   use Gettext, backend: PhoenixKitManufacturing.Gettext
@@ -390,7 +402,10 @@ defmodule PhoenixKitManufacturing.Attachments do
     with {:ok, target_name} <- folder_name_for(resource),
          %{} = folder <- Storage.get_folder(folder_uuid),
          current_name when current_name != target_name <- folder.name do
-      case Storage.update_folder(folder, %{name: target_name}) do
+      case Storage.update_folder(folder, %{
+             name: target_name,
+             parent_uuid: parent_folder_uuid(resource, nil)
+           }) do
         {:ok, _} ->
           :ok
 
@@ -416,6 +431,26 @@ defmodule PhoenixKitManufacturing.Attachments do
     do: {:ok, "machine-#{uuid}"}
 
   def folder_name_for(_), do: :pending
+
+  @doc false
+  # Host-configured parent folder; `nil` = storage root (default).
+  # Accepts the scope string ("machine") or the resource struct.
+  def parent_folder_uuid(%Machine{}, actor_uuid), do: parent_folder_uuid("machine", actor_uuid)
+
+  def parent_folder_uuid(scope, actor_uuid) when is_binary(scope) do
+    case Application.get_env(:phoenix_kit_manufacturing, :attachments_parent_folder) do
+      {mod, fun} when is_atom(mod) and is_atom(fun) ->
+        case apply(mod, fun, [scope, actor_uuid]) do
+          {:ok, uuid} when is_binary(uuid) -> uuid
+          _ -> nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  def parent_folder_uuid(_, _), do: nil
 
   # ═══════════════════════════════════════════════════════════════════
   # Template helpers
@@ -525,32 +560,43 @@ defmodule PhoenixKitManufacturing.Attachments do
         {:ok, uuid, socket}
 
       _ ->
+        parent_uuid = parent_folder_uuid(scope, current_user_uuid(socket))
+
         case folder_name_for(st.resource) do
-          {:ok, name} -> find_or_create_folder(socket, scope, name)
-          :pending -> create_pending_folder(socket, scope)
+          {:ok, name} -> find_or_create_folder(socket, scope, name, parent_uuid)
+          :pending -> create_pending_folder(socket, scope, parent_uuid)
         end
     end
   end
 
-  defp find_or_create_folder(socket, scope, folder_name) do
-    case find_folder_by_name(folder_name) do
+  defp find_or_create_folder(socket, scope, folder_name, parent_uuid) do
+    case find_folder_by_name(folder_name, parent_uuid) do
       %{uuid: uuid} ->
         socket = update_scope(socket, scope, &Map.put(&1, :folder_uuid, uuid))
         {:ok, uuid, socket}
 
       nil ->
-        create_folder(socket, scope, folder_name)
+        create_folder(socket, scope, folder_name, parent_uuid)
     end
   end
 
-  defp create_pending_folder(socket, scope) do
-    create_folder(socket, scope, "machine-attachment-pending-#{Ecto.UUID.generate()}")
+  defp create_pending_folder(socket, scope, parent_uuid) do
+    create_folder(
+      socket,
+      scope,
+      "machine-attachment-pending-#{Ecto.UUID.generate()}",
+      parent_uuid
+    )
   end
 
-  defp create_folder(socket, scope, folder_name) do
+  defp create_folder(socket, scope, folder_name, parent_uuid) do
     user_uuid = current_user_uuid(socket)
 
-    case Storage.create_folder(%{name: folder_name, user_uuid: user_uuid}) do
+    case Storage.create_folder(%{
+           name: folder_name,
+           user_uuid: user_uuid,
+           parent_uuid: parent_uuid
+         }) do
       {:ok, folder} ->
         socket = update_scope(socket, scope, &Map.put(&1, :folder_uuid, folder.uuid))
         {:ok, folder.uuid, socket}
@@ -560,16 +606,32 @@ defmodule PhoenixKitManufacturing.Attachments do
     end
   end
 
-  defp find_folder_by_name(name) when is_binary(name) do
+  @doc false
+  def find_folder_by_name(name, parent_uuid \\ nil) when is_binary(name) do
+    case parent_uuid && find_folder_by_name_under(name, parent_uuid) do
+      %{} = folder -> folder
+      _ -> find_folder_by_name_under(name, nil)
+    end
+  rescue
+    error ->
+      Logger.warning("find_folder_by_name failed for #{name}: #{inspect(error)}")
+      nil
+  end
+
+  defp find_folder_by_name_under(name, nil) do
     from(f in PhoenixKit.Modules.Storage.Folder,
       where: f.name == ^name and is_nil(f.parent_uuid),
       limit: 1
     )
     |> PhoenixKit.RepoHelper.repo().one()
-  rescue
-    error ->
-      Logger.warning("find_folder_by_name failed for #{name}: #{inspect(error)}")
-      nil
+  end
+
+  defp find_folder_by_name_under(name, parent_uuid) do
+    from(f in PhoenixKit.Modules.Storage.Folder,
+      where: f.name == ^name and f.parent_uuid == ^parent_uuid,
+      limit: 1
+    )
+    |> PhoenixKit.RepoHelper.repo().one()
   end
 
   # ═══════════════════════════════════════════════════════════════════
