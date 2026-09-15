@@ -22,6 +22,14 @@ defmodule PhoenixKitManufacturing.MediaReorganizerTest do
     end
   end
 
+  defmodule RaisingHook do
+    def parent("machine", _actor), do: raise("boom")
+  end
+
+  defmodule ErrorHook do
+    def parent("machine", _actor), do: {:error, :timeout}
+  end
+
   setup do
     on_exit(fn ->
       Application.delete_env(:phoenix_kit_manufacturing, :attachments_parent_folder)
@@ -249,6 +257,26 @@ defmodule PhoenixKitManufacturing.MediaReorganizerTest do
     refute Enum.any?(actions, &(&1.kind == :machine and &1.label == "Ghost mill"))
   end
 
+  test "an upper-case pointer still resolves to its (lower-case) live folder (R5)" do
+    machine = new_machine(%{name: "Press 12"})
+    {:ok, target} = Storage.create_folder(%{name: "Machines"})
+    {:ok, folder} = Storage.create_folder(%{name: "machine-#{machine.uuid}"})
+
+    {:ok, _machine} =
+      Machines.update_machine(machine, %{
+        data: %{"files_folder_uuid" => String.upcase(folder.uuid)}
+      })
+
+    Process.put(:target_folder, target.uuid)
+    Application.put_env(:phoenix_kit_manufacturing, :attachments_parent_folder, {Hook, :parent})
+
+    actions = MediaReorganizer.plan(nil, [])
+    action = Enum.find(actions, &(&1.kind == :machine))
+
+    refute is_nil(action)
+    assert action.folder.uuid == folder.uuid
+  end
+
   test "invalid pointer values ('' and 'not-a-uuid') are treated as absent, never raise" do
     m1 = new_machine(%{name: "A", data: %{"files_folder_uuid" => "not-a-uuid"}})
     m2 = new_machine(%{name: "B", data: %{"files_folder_uuid" => ""}})
@@ -306,6 +334,83 @@ defmodule PhoenixKitManufacturing.MediaReorganizerTest do
 
     assert actions == []
     assert Process.get(:hook_call_count, 0) == 0
+  end
+
+  test "hook raises → move candidates skipped, one hook_error report, never planned as root (R2)" do
+    machine = new_machine(%{name: "Press 12"})
+    {:ok, folder} = Storage.create_folder(%{name: "machine-#{machine.uuid}"})
+
+    Application.put_env(
+      :phoenix_kit_manufacturing,
+      :attachments_parent_folder,
+      {RaisingHook, :parent}
+    )
+
+    actions = MediaReorganizer.plan(nil, [])
+
+    refute Enum.any?(actions, &(&1.kind == :machine))
+    error = Enum.find(actions, &(&1.kind == :hook_error))
+    refute is_nil(error)
+    assert error.op == :report
+    assert error.reason =~ "1 machine(s) skipped"
+
+    # never silently treated as root: the folder isn't moved and isn't
+    # reported as an orphan either (it's still a live machine's folder).
+    refute Enum.any?(actions, &(&1.kind == :orphan and &1.folder.uuid == folder.uuid))
+  end
+
+  test "hook returns {:error, _} → same as raising, never treated as root (R2)" do
+    m1 = new_machine(%{name: "A"})
+    m2 = new_machine(%{name: "B"})
+    {:ok, _f1} = Storage.create_folder(%{name: "machine-#{m1.uuid}"})
+    {:ok, _f2} = Storage.create_folder(%{name: "machine-#{m2.uuid}"})
+
+    Application.put_env(
+      :phoenix_kit_manufacturing,
+      :attachments_parent_folder,
+      {ErrorHook, :parent}
+    )
+
+    actions = MediaReorganizer.plan(nil, [])
+
+    refute Enum.any?(actions, &(&1.kind == :machine))
+    error = Enum.find(actions, &(&1.kind == :hook_error))
+    refute is_nil(error)
+    assert error.reason =~ "2 machine(s) skipped"
+  end
+
+  test "legacy folder a machine's pointer claims (under a different machine's stale name) is never also reported as an orphan (R4)" do
+    ghost_uuid = Ecto.UUID.generate()
+    machine = new_machine()
+
+    {:ok, folder} = Storage.create_folder(%{name: "machine-#{ghost_uuid}"})
+
+    {:ok, _machine} =
+      Machines.update_machine(machine, %{data: %{"files_folder_uuid" => folder.uuid}})
+
+    Application.put_env(:phoenix_kit_manufacturing, :attachments_parent_folder, {Hook, :parent})
+
+    actions = MediaReorganizer.plan(nil, [])
+
+    refute Enum.any?(actions, &(&1.kind == :orphan and &1.folder.uuid == folder.uuid))
+  end
+
+  test "after_move back-fill on a hard-deleted machine aborts instead of writing a dangling pointer" do
+    machine = new_machine(%{name: "Press 12"})
+    {:ok, target} = Storage.create_folder(%{name: "Machines"})
+    {:ok, folder} = Storage.create_folder(%{name: "machine-#{machine.uuid}"})
+
+    Process.put(:target_folder, target.uuid)
+    Application.put_env(:phoenix_kit_manufacturing, :attachments_parent_folder, {Hook, :parent})
+
+    actions = MediaReorganizer.plan(nil, [])
+    action = Enum.find(actions, &(&1.kind == :machine))
+
+    {:ok, _} = Machines.delete_machine(machine)
+
+    assert action.after_move.() == {:error, :not_found}
+    reloaded = Storage.get_folder(folder.uuid)
+    refute is_nil(reloaded)
   end
 
   test "plan/2 never creates a folder" do
@@ -366,7 +471,27 @@ defmodule PhoenixKitManufacturing.MediaReorganizerTest do
   end
 
   describe "pending folders" do
-    test "empty pending folder older than pending_days → op: :trash" do
+    test "empty pending folder older than pending_days, hook configured → op: :trash" do
+      {:ok, folder} =
+        Storage.create_folder(%{name: "machine-attachment-pending-#{Ecto.UUID.generate()}"})
+
+      old_time =
+        DateTime.utc_now() |> DateTime.add(-10 * 86_400, :second) |> DateTime.truncate(:second)
+
+      Repo.update_all(
+        from(f in Storage.Folder, where: f.uuid == ^folder.uuid),
+        set: [inserted_at: old_time]
+      )
+
+      Application.put_env(:phoenix_kit_manufacturing, :attachments_parent_folder, {Hook, :parent})
+
+      actions = MediaReorganizer.plan(nil, pending_days: 7)
+      action = Enum.find(actions, &(&1.kind == :pending and &1.folder.uuid == folder.uuid))
+
+      assert action.op == :trash
+    end
+
+    test "empty pending folder older than pending_days, no hook configured → op: :report (E1)" do
       {:ok, folder} =
         Storage.create_folder(%{name: "machine-attachment-pending-#{Ecto.UUID.generate()}"})
 
@@ -381,7 +506,8 @@ defmodule PhoenixKitManufacturing.MediaReorganizerTest do
       actions = MediaReorganizer.plan(nil, pending_days: 7)
       action = Enum.find(actions, &(&1.kind == :pending and &1.folder.uuid == folder.uuid))
 
-      assert action.op == :trash
+      assert action.op == :report
+      assert action.reason =~ "no attachments hook configured"
     end
 
     test "non-empty pending folder → op: :report with the file name in the reason", %{
@@ -410,6 +536,75 @@ defmodule PhoenixKitManufacturing.MediaReorganizerTest do
 
       actions = MediaReorganizer.plan(nil, pending_days: 7)
       refute Enum.any?(actions, &(&1.kind == :pending and &1.folder.uuid == folder.uuid))
+    end
+
+    test "pending folder a live machine's pointer names is never trashed, even with no hook configured (R1)" do
+      machine = new_machine()
+
+      {:ok, folder} =
+        Storage.create_folder(%{name: "machine-attachment-pending-#{Ecto.UUID.generate()}"})
+
+      {:ok, _machine} =
+        Machines.update_machine(machine, %{data: %{"files_folder_uuid" => folder.uuid}})
+
+      old_time =
+        DateTime.utc_now() |> DateTime.add(-10 * 86_400, :second) |> DateTime.truncate(:second)
+
+      Repo.update_all(
+        from(f in Storage.Folder, where: f.uuid == ^folder.uuid),
+        set: [inserted_at: old_time]
+      )
+
+      # No hook configured at all — R1's claims are hook-independent, so
+      # this folder is still never trashed (or reported), even though D1
+      # leaves every other kind of action unplanned without a hook.
+      actions = MediaReorganizer.plan(nil, pending_days: 7)
+
+      refute Enum.any?(actions, &(&1.kind == :pending and &1.folder.uuid == folder.uuid))
+    end
+
+    test "an upper-case pointer to a pending folder claims it — never trashed (R5)" do
+      machine = new_machine()
+
+      {:ok, folder} =
+        Storage.create_folder(%{name: "machine-attachment-pending-#{Ecto.UUID.generate()}"})
+
+      {:ok, _machine} =
+        Machines.update_machine(machine, %{
+          data: %{"files_folder_uuid" => String.upcase(folder.uuid)}
+        })
+
+      old_time =
+        DateTime.utc_now() |> DateTime.add(-10 * 86_400, :second) |> DateTime.truncate(:second)
+
+      Repo.update_all(
+        from(f in Storage.Folder, where: f.uuid == ^folder.uuid),
+        set: [inserted_at: old_time]
+      )
+
+      actions = MediaReorganizer.plan(nil, pending_days: 7)
+
+      refute Enum.any?(actions, &(&1.kind == :pending and &1.folder.uuid == folder.uuid))
+    end
+
+    test "pending folder whose only file is trashed → reason says N trashed file(s), never empty (R6)",
+         %{user_uuid: user_uuid} do
+      {:ok, folder} =
+        Storage.create_folder(%{name: "machine-attachment-pending-#{Ecto.UUID.generate()}"})
+
+      create_file(%{
+        status: "trashed",
+        folder_uuid: folder.uuid,
+        user_uuid: user_uuid,
+        file_checksum: "trashed-pending-checksum"
+      })
+
+      actions = MediaReorganizer.plan(nil, pending_days: 7)
+      action = Enum.find(actions, &(&1.kind == :pending and &1.folder.uuid == folder.uuid))
+
+      refute is_nil(action)
+      assert action.op == :report
+      assert action.reason =~ "1 trashed file(s)"
     end
 
     test "pending folder a live machine currently points at is never independently reported/trashed (X4)" do
