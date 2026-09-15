@@ -208,8 +208,8 @@ defmodule PhoenixKitManufacturing.MediaReorganizerTest do
     {:ok, machine} =
       Machines.update_machine(machine, %{data: %{"files_folder_uuid" => trashed.uuid}})
 
-    # D1: a hook must be configured (even one that resolves to root) for
-    # the Source to plan anything at all.
+    # E1: a hook must be configured (even one that resolves to root) for a
+    # `:move` to be planned at all — without it this Source only reports.
     Application.put_env(:phoenix_kit_manufacturing, :attachments_parent_folder, {Hook, :parent})
 
     actions = MediaReorganizer.plan(nil, [])
@@ -450,6 +450,123 @@ defmodule PhoenixKitManufacturing.MediaReorganizerTest do
     refute is_nil(error)
   end
 
+  describe "uncallable configured hook (T3)" do
+    test "hook module/function does not exist → hook_error 'not callable', no moves, no crash" do
+      machine = new_machine(%{name: "Press 12"})
+      {:ok, _folder} = Storage.create_folder(%{name: "machine-#{machine.uuid}"})
+
+      Application.put_env(
+        :phoenix_kit_manufacturing,
+        :attachments_parent_folder,
+        {PhoenixKitManufacturing.MediaReorganizerTest.NoSuchModule, :parent}
+      )
+
+      actions = MediaReorganizer.plan(nil, [])
+
+      refute Enum.any?(actions, &(&1.kind == :machine and &1.op == :move))
+      error = Enum.find(actions, &(&1.kind == :hook_error))
+      refute is_nil(error)
+      assert error.reason =~ "not callable"
+    end
+  end
+
+  describe "explicit nil from a hook never moves a folder out of its parent (F1)" do
+    test "machine's pointer already names a folder under a parent, hook answers nil → no move, hook_nil report" do
+      machine = new_machine(%{name: "Press 12"})
+      {:ok, target} = Storage.create_folder(%{name: "Machines"})
+      {:ok, folder} = Storage.create_folder(%{name: "Real folder", parent_uuid: target.uuid})
+
+      {:ok, _machine} =
+        Machines.update_machine(machine, %{data: %{"files_folder_uuid" => folder.uuid}})
+
+      # `Hook.parent/2`'s default clause answers `nil` (root) because
+      # `:target_folder` is never set for this test.
+      Application.put_env(:phoenix_kit_manufacturing, :attachments_parent_folder, {Hook, :parent})
+
+      actions = MediaReorganizer.plan(nil, [])
+
+      refute Enum.any?(
+               actions,
+               &(&1.kind == :machine and &1.op == :move and &1.parent_uuid == nil)
+             )
+
+      hook_nil = Enum.find(actions, &(&1.kind == :hook_nil))
+      refute is_nil(hook_nil)
+      assert hook_nil.op == :report
+      assert hook_nil.reason =~ "1 machine"
+
+      # Pointer already matches `folder` — nothing left to plan once the
+      # false move-to-root is suppressed.
+      refute Enum.any?(actions, &(&1.kind == :machine))
+    end
+
+    test "the hook_nil report aggregates a count across every affected machine" do
+      m1 = new_machine(%{name: "First"})
+      m2 = new_machine(%{name: "Second"})
+      {:ok, target} = Storage.create_folder(%{name: "Machines"})
+      {:ok, f1} = Storage.create_folder(%{name: "Real folder 1", parent_uuid: target.uuid})
+      {:ok, f2} = Storage.create_folder(%{name: "Real folder 2", parent_uuid: target.uuid})
+
+      {:ok, _m1} = Machines.update_machine(m1, %{data: %{"files_folder_uuid" => f1.uuid}})
+      {:ok, _m2} = Machines.update_machine(m2, %{data: %{"files_folder_uuid" => f2.uuid}})
+
+      Application.put_env(:phoenix_kit_manufacturing, :attachments_parent_folder, {Hook, :parent})
+
+      actions = MediaReorganizer.plan(nil, [])
+
+      hook_nil = Enum.find(actions, &(&1.kind == :hook_nil))
+      refute is_nil(hook_nil)
+      assert hook_nil.reason =~ "2 machine"
+    end
+  end
+
+  describe "converging targets (E3/F6)" do
+    test "two machines each keeping their own pointer-found folder name would collide at the same destination → duplicate, no moves" do
+      m1 = new_machine(%{name: "First"})
+      m2 = new_machine(%{name: "Second"})
+      {:ok, target} = Storage.create_folder(%{name: "Machines"})
+      {:ok, other} = Storage.create_folder(%{name: "Other container"})
+      {:ok, f1} = Storage.create_folder(%{name: "Docs"})
+      {:ok, f2} = Storage.create_folder(%{name: "Docs", parent_uuid: other.uuid})
+
+      {:ok, _m1} = Machines.update_machine(m1, %{data: %{"files_folder_uuid" => f1.uuid}})
+      {:ok, _m2} = Machines.update_machine(m2, %{data: %{"files_folder_uuid" => f2.uuid}})
+
+      Process.put(:target_folder, target.uuid)
+      Application.put_env(:phoenix_kit_manufacturing, :attachments_parent_folder, {Hook, :parent})
+
+      actions = MediaReorganizer.plan(nil, [])
+
+      refute Enum.any?(actions, &(&1.kind == :machine and &1.op == :move))
+
+      dup =
+        Enum.find(
+          actions,
+          &(&1.kind == :duplicate and &1.label =~ "First" and &1.label =~ "Second")
+        )
+
+      refute is_nil(dup)
+    end
+
+    test "two machines resolving to different names never converge → both move independently" do
+      m1 = new_machine(%{name: "First"})
+      m2 = new_machine(%{name: "Second"})
+      {:ok, target} = Storage.create_folder(%{name: "Machines"})
+      {:ok, f1} = Storage.create_folder(%{name: "machine-#{m1.uuid}"})
+      {:ok, f2} = Storage.create_folder(%{name: "machine-#{m2.uuid}"})
+
+      Process.put(:target_folder, target.uuid)
+      Application.put_env(:phoenix_kit_manufacturing, :attachments_parent_folder, {Hook, :parent})
+
+      actions = MediaReorganizer.plan(nil, [])
+
+      refute Enum.any?(actions, &(&1.kind == :duplicate))
+      assert Enum.count(actions, &(&1.kind == :machine and &1.op == :move)) == 2
+      assert Enum.any?(actions, &(&1.kind == :machine and &1.folder.uuid == f1.uuid))
+      assert Enum.any?(actions, &(&1.kind == :machine and &1.folder.uuid == f2.uuid))
+    end
+  end
+
   test "a legacy-named twin live elsewhere is reported :relocated alongside the pointer-found folder's own action" do
     machine = new_machine(%{name: "Press 12"})
     {:ok, target} = Storage.create_folder(%{name: "Machines"})
@@ -477,6 +594,50 @@ defmodule PhoenixKitManufacturing.MediaReorganizerTest do
 
     # the twin is never also reported as an orphan (its machine is live).
     refute Enum.any?(actions, &(&1.kind == :orphan and &1.folder.uuid == twin.uuid))
+  end
+
+  test "legacy folder live under neither the resolved parent nor root, no pointer → reported :relocated, not silently dropped (N2)" do
+    machine = new_machine(%{name: "Press 12"})
+    {:ok, target} = Storage.create_folder(%{name: "Machines"})
+    {:ok, elsewhere} = Storage.create_folder(%{name: "Some other container"})
+
+    {:ok, legacy} =
+      Storage.create_folder(%{name: "machine-#{machine.uuid}", parent_uuid: elsewhere.uuid})
+
+    Process.put(:target_folder, target.uuid)
+    Application.put_env(:phoenix_kit_manufacturing, :attachments_parent_folder, {Hook, :parent})
+
+    actions = MediaReorganizer.plan(nil, [])
+
+    refute Enum.any?(actions, &(&1.kind == :machine))
+    relocated = Enum.find(actions, &(&1.kind == :relocated and &1.label == machine.name))
+    refute is_nil(relocated)
+    assert relocated.folder.uuid == legacy.uuid
+
+    # never mistaken for an orphan — the machine is live, just not adopted.
+    refute Enum.any?(actions, &(&1.kind == :orphan and &1.folder.uuid == legacy.uuid))
+  end
+
+  test "a stray legacy copy that is another machine's live pointer target is never reported :relocated (T5)" do
+    a = new_machine(%{name: "A"})
+    b = new_machine(%{name: "B"})
+    {:ok, target} = Storage.create_folder(%{name: "Machines"})
+    {:ok, elsewhere} = Storage.create_folder(%{name: "Some other container"})
+
+    {:ok, shared} =
+      Storage.create_folder(%{name: "machine-#{a.uuid}", parent_uuid: elsewhere.uuid})
+
+    {:ok, _b} = Machines.update_machine(b, %{data: %{"files_folder_uuid" => shared.uuid}})
+
+    Process.put(:target_folder, target.uuid)
+    Application.put_env(:phoenix_kit_manufacturing, :attachments_parent_folder, {Hook, :parent})
+
+    actions = MediaReorganizer.plan(nil, [])
+
+    # `shared` is B's own live pointer folder — never also reported as a
+    # stray copy of A's legacy name, and never an orphan either.
+    refute Enum.any?(actions, &(&1.kind == :relocated and &1.folder.uuid == shared.uuid))
+    refute Enum.any?(actions, &(&1.kind == :orphan and &1.folder.uuid == shared.uuid))
   end
 
   test "legacy folder a machine's pointer claims (under a different machine's stale name) is never also reported as an orphan (R4)" do
@@ -656,8 +817,8 @@ defmodule PhoenixKitManufacturing.MediaReorganizerTest do
       )
 
       # No hook configured at all — R1's claims are hook-independent, so
-      # this folder is still never trashed (or reported), even though D1
-      # leaves every other kind of action unplanned without a hook.
+      # this folder is still never trashed (or reported), even though E1
+      # restricts every other action without a hook to report-only.
       actions = MediaReorganizer.plan(nil, pending_days: 7)
 
       refute Enum.any?(actions, &(&1.kind == :pending and &1.folder.uuid == folder.uuid))
@@ -813,7 +974,12 @@ defmodule PhoenixKitManufacturing.MediaReorganizerTest do
       refute Enum.any?(actions, &(&1.kind == :orphan and &1.folder.uuid == folder.uuid))
     end
 
-    test "orphaned legacy folder under the resolved parent (machine hard-deleted) → reported (X13)" do
+    # F4/R8: R8 wins over X13 — no hook call without a move candidate, so
+    # an orphan under a parent no candidate resolved is never found (only
+    # at root, see the test above); calling the hook just to widen an
+    # orphan scan is no longer done (an Andi `Containers.ensure`-style
+    # hook would create a container and write Settings on a dry-run plan).
+    test "orphaned legacy folder under a non-root parent, no live move candidate → NOT reported (hook never called, F4/R8)" do
       machine = new_machine()
       {:ok, target} = Storage.create_folder(%{name: "Machines"})
 
@@ -822,18 +988,18 @@ defmodule PhoenixKitManufacturing.MediaReorganizerTest do
 
       {:ok, _} = Machines.delete_machine(machine)
 
-      # No live machine remains to surface as a move candidate — the hook
-      # must still run once (via the machine-prefix existence check) for
-      # this orphan, now sitting under the configured parent, to be found.
       Process.put(:target_folder, target.uuid)
-      Application.put_env(:phoenix_kit_manufacturing, :attachments_parent_folder, {Hook, :parent})
+
+      Application.put_env(
+        :phoenix_kit_manufacturing,
+        :attachments_parent_folder,
+        {CountingHook, :parent}
+      )
 
       actions = MediaReorganizer.plan(nil, [])
-      action = Enum.find(actions, &(&1.kind == :orphan and &1.folder.uuid == folder.uuid))
 
-      refute is_nil(action)
-      assert action.op == :report
-      assert action.reason =~ "missing"
+      refute Enum.any?(actions, &(&1.kind == :orphan and &1.folder.uuid == folder.uuid))
+      assert Process.get(:hook_call_count, 0) == 0
     end
   end
 end
