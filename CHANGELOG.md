@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- `PhoenixKitManufacturing.MediaReorganizer`: plans legacy media-folder
+  moves for machines from the `:attachments_parent_folder` hook, plus
+  stale pending-upload-folder and orphaned-legacy-folder reports.
+  Registered via `PhoenixKitManufacturing.media_reorganizer/0` (no `@impl`
+  yet — the core engine that will consume it has not shipped).
+
 ## 0.4.3 - 2026-09-14
 
 ### Added
