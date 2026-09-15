@@ -468,6 +468,24 @@ defmodule PhoenixKitManufacturing.MediaReorganizerTest do
       refute is_nil(error)
       assert error.reason =~ "not callable"
     end
+
+    test "hook module exists but the configured function is not exported → hook_error 'not callable', no moves, no crash" do
+      machine = new_machine(%{name: "Press 12"})
+      {:ok, _folder} = Storage.create_folder(%{name: "machine-#{machine.uuid}"})
+
+      Application.put_env(
+        :phoenix_kit_manufacturing,
+        :attachments_parent_folder,
+        {Hook, :no_such_function}
+      )
+
+      actions = MediaReorganizer.plan(nil, [])
+
+      refute Enum.any?(actions, &(&1.kind == :machine and &1.op == :move))
+      error = Enum.find(actions, &(&1.kind == :hook_error))
+      refute is_nil(error)
+      assert error.reason =~ "not callable"
+    end
   end
 
   describe "explicit nil from a hook never moves a folder out of its parent (F1)" do
@@ -546,6 +564,44 @@ defmodule PhoenixKitManufacturing.MediaReorganizerTest do
         )
 
       refute is_nil(dup)
+    end
+
+    test "an already-placed machine never blocks a different machine's real move to the same name (E3/F6 excludes noops from convergence)" do
+      already_placed = new_machine(%{name: "Already placed"})
+      mover = new_machine(%{name: "Mover"})
+      {:ok, target} = Storage.create_folder(%{name: "Machines"})
+      {:ok, elsewhere} = Storage.create_folder(%{name: "Elsewhere"})
+
+      # `already_placed`'s pointer folder is already named "Docs" directly
+      # under the resolved target — a true no-op, zero action needed.
+      {:ok, in_place} = Storage.create_folder(%{name: "Docs", parent_uuid: target.uuid})
+
+      # `mover`'s pointer folder is also named "Docs", but lives elsewhere
+      # and genuinely needs to move into the target — the engine's own
+      # `on_conflict: :suffix` would resolve the name collision at apply
+      # time since `already_placed` never moves.
+      {:ok, to_move} = Storage.create_folder(%{name: "Docs", parent_uuid: elsewhere.uuid})
+
+      {:ok, _} =
+        Machines.update_machine(already_placed, %{data: %{"files_folder_uuid" => in_place.uuid}})
+
+      {:ok, _} = Machines.update_machine(mover, %{data: %{"files_folder_uuid" => to_move.uuid}})
+
+      Process.put(:target_folder, target.uuid)
+      Application.put_env(:phoenix_kit_manufacturing, :attachments_parent_folder, {Hook, :parent})
+
+      actions = MediaReorganizer.plan(nil, [])
+
+      refute Enum.any?(actions, &(&1.kind == :duplicate))
+
+      move = Enum.find(actions, &(&1.kind == :machine and &1.op == :move))
+      refute is_nil(move)
+      assert move.label == mover.name
+      assert move.folder.uuid == to_move.uuid
+      assert move.parent_uuid == target.uuid
+
+      # the already-placed machine needs no action of its own at all.
+      refute Enum.any?(actions, &(&1.kind == :machine and &1.label == already_placed.name))
     end
 
     test "two machines resolving to different names never converge → both move independently" do
@@ -689,13 +745,58 @@ defmodule PhoenixKitManufacturing.MediaReorganizerTest do
     assert count_before == count_after
   end
 
+  describe "light select never pulls the jsonb data column (T8)" do
+    test "the machines candidate-detection query selects the pointer via a jsonb fragment, not the raw data column" do
+      machine = new_machine()
+      {:ok, target} = Storage.create_folder(%{name: "Machines"})
+      {:ok, _folder} = Storage.create_folder(%{name: "machine-#{machine.uuid}"})
+
+      Process.put(:target_folder, target.uuid)
+      Application.put_env(:phoenix_kit_manufacturing, :attachments_parent_folder, {Hook, :parent})
+
+      ref = make_ref()
+      test_pid = self()
+
+      :telemetry.attach(
+        {__MODULE__, ref},
+        [:phoenix_kit_manufacturing, :test, :repo, :query],
+        fn _event, _measurements, %{query: query}, _config ->
+          send(test_pid, {:query, ref, query})
+        end,
+        nil
+      )
+
+      try do
+        MediaReorganizer.plan(nil, [])
+      after
+        :telemetry.detach({__MODULE__, ref})
+      end
+
+      queries = collect_queries(ref)
+
+      machines_queries = Enum.filter(queries, &(&1 =~ "phoenix_kit_machines"))
+
+      refute Enum.empty?(machines_queries)
+      assert Enum.any?(machines_queries, &(&1 =~ "->>"))
+      refute Enum.any?(machines_queries, &Regex.match?(~r/"data"(?!->)/, &1))
+    end
+  end
+
+  defp collect_queries(ref) do
+    receive do
+      {:query, ^ref, query} -> [query | collect_queries(ref)]
+    after
+      0 -> []
+    end
+  end
+
   describe "duplicate folders (X4/X5/X11)" do
     test "legacy folder live at both root and under the resolved parent → one duplicate report, no move" do
       machine = new_machine()
       {:ok, target} = Storage.create_folder(%{name: "Machines"})
       {:ok, at_root} = Storage.create_folder(%{name: "machine-#{machine.uuid}"})
 
-      {:ok, _under_parent} =
+      {:ok, under_parent} =
         Storage.create_folder(%{name: "machine-#{machine.uuid}", parent_uuid: target.uuid})
 
       Process.put(:target_folder, target.uuid)
@@ -708,6 +809,7 @@ defmodule PhoenixKitManufacturing.MediaReorganizerTest do
       refute is_nil(dup)
       assert dup.op == :report
       assert dup.reason =~ at_root.uuid
+      assert dup.reason =~ under_parent.uuid
     end
 
     test "two machines whose current folder resolves to the same live folder → one duplicate report, no move" do
@@ -919,6 +1021,44 @@ defmodule PhoenixKitManufacturing.MediaReorganizerTest do
       assert action.op == :report
       assert action.counts == {0, 1}
       assert action.reason =~ "linked.pdf"
+    end
+  end
+
+  describe "deterministic report ordering (T6)" do
+    test "orphan reports are ordered by inserted_at, not by row/insertion order" do
+      older_uuid = Ecto.UUID.generate()
+      newer_uuid = Ecto.UUID.generate()
+
+      # Created in the opposite order from the `inserted_at` values they
+      # are backdated to below, so a query with no `order_by` (row/scan
+      # order) would list them newer-first — the reverse of the assertion.
+      {:ok, newer} = Storage.create_folder(%{name: "machine-#{newer_uuid}"})
+      {:ok, older} = Storage.create_folder(%{name: "machine-#{older_uuid}"})
+
+      older_time =
+        DateTime.utc_now() |> DateTime.add(-2 * 86_400, :second) |> DateTime.truncate(:second)
+
+      newer_time =
+        DateTime.utc_now() |> DateTime.add(-1 * 86_400, :second) |> DateTime.truncate(:second)
+
+      Repo.update_all(
+        from(f in Storage.Folder, where: f.uuid == ^older.uuid),
+        set: [inserted_at: older_time]
+      )
+
+      Repo.update_all(
+        from(f in Storage.Folder, where: f.uuid == ^newer.uuid),
+        set: [inserted_at: newer_time]
+      )
+
+      actions = MediaReorganizer.plan(nil, [])
+
+      orphan_uuids =
+        actions
+        |> Enum.filter(&(&1.kind == :orphan))
+        |> Enum.map(& &1.folder.uuid)
+
+      assert orphan_uuids == [older.uuid, newer.uuid]
     end
   end
 

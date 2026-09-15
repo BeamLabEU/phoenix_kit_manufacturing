@@ -175,8 +175,10 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
 
     {resource_actions, resolved_claims, resolved_parent, hook_on?} =
       case hook_status() do
-        :ok ->
-          {actions, claims, parent} = build_resource_plan(machines, actor_uuid, pointer_claims)
+        {:ok, mod, fun} ->
+          {actions, claims, parent} =
+            build_resource_plan(machines, actor_uuid, pointer_claims, mod, fun)
+
           {actions, claims, parent, true}
 
         {:not_callable, mod, fun} ->
@@ -198,11 +200,13 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
   # T3: a configured `{mod, fun}` that is not actually callable (a typo, a
   # removed function) is a distinct failure from "no hook configured at
   # all" — it must not silently degrade to report-only (E1) without
-  # telling the owner why nothing moved.
+  # telling the owner why nothing moved. Returns the resolved `{mod, fun}`
+  # alongside `:ok` so the caller never has to read the same env var again
+  # to find out what to actually call (N8).
   defp hook_status do
     case Application.get_env(:phoenix_kit_manufacturing, :attachments_parent_folder) do
       {mod, fun} when is_atom(mod) and is_atom(fun) ->
-        if callable?(mod, fun), do: :ok, else: {:not_callable, mod, fun}
+        if callable?(mod, fun), do: {:ok, mod, fun}, else: {:not_callable, mod, fun}
 
       _ ->
         :none
@@ -229,16 +233,14 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
   # (F4/R8: no hook call without a candidate, even to widen orphan
   # detection — see `plan/2`, which falls back to a root-only orphan scan
   # when there is nothing for the hook to place).
-  defp build_resource_plan(machines, actor_uuid, pointer_claims) do
-    {mod, fun} = Application.get_env(:phoenix_kit_manufacturing, :attachments_parent_folder)
-
+  defp build_resource_plan(machines, actor_uuid, pointer_claims, mod, fun) do
     prelim =
-      Enum.map(machines, fn machine ->
+      Enum.map(machines, fn {machine, pointer} ->
         {:ok, legacy_name} = Attachments.folder_name_for(machine)
 
         %{
           record: machine,
-          pointer: valid_uuid(pointer_uuid(machine)),
+          pointer: valid_uuid(pointer),
           legacy_name: legacy_name
         }
       end)
@@ -281,9 +283,26 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
         {with_folder, without_folder} = Enum.split_with(normal, & &1.folder)
 
         {shared, unique} = split_shared(with_folder)
-        {converging, solo} = split_converging(unique)
 
-        move_actions = solo |> Enum.map(&build_move_action/1) |> Enum.reject(&is_nil/1)
+        # E3/F6: convergence collisions are only meaningful among entries
+        # that actually need to move — a folder already sitting exactly
+        # where it belongs (`noop_move?`) can never collide with anything
+        # at apply time, so it must never be swept into a `:duplicate`
+        # report merely for sharing its resolved name with a real mover.
+        {movers, _noops} =
+          Enum.split_with(unique, &(!noop_move?(&1.folder, &1.parent_uuid, &1.name)))
+
+        {converging, _solo_movers} = split_converging(movers)
+
+        converging_record_uuids =
+          converging |> List.flatten() |> MapSet.new(& &1.record.uuid)
+
+        move_actions =
+          unique
+          |> Enum.reject(&MapSet.member?(converging_record_uuids, &1.record.uuid))
+          |> Enum.map(&build_move_action/1)
+          |> Enum.reject(&is_nil/1)
+
         dup_actions = Enum.map(ambiguous, &build_ambiguous_duplicate_action/1)
         shared_actions = Enum.map(shared, &build_shared_duplicate_action/1)
         converging_actions = Enum.map(converging, &build_converging_duplicate_action/1)
@@ -475,11 +494,14 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
   # Splits entries whose current folder is claimed by exactly one machine
   # (`unique`) from those where two or more machines resolve to the very
   # same live folder (`shared`, X5) — order-preserving (a plain `group_by`
-  # would scramble R10's enumeration order).
+  # would scramble R10's enumeration order): `unique`/`shared_entries` keep
+  # `entries`' order via `split_with`, and `shared_groups` keeps it via
+  # `group_preserving_order/2` (T6 — `Enum.group_by/2`'s `Map.values/1` is
+  # ordered by key, not by first appearance).
   defp split_shared(entries) do
     freq = Enum.frequencies_by(entries, & &1.folder.uuid)
     {shared_entries, unique} = Enum.split_with(entries, &(Map.get(freq, &1.folder.uuid) > 1))
-    shared_groups = shared_entries |> Enum.group_by(& &1.folder.uuid) |> Map.values()
+    shared_groups = group_preserving_order(shared_entries, & &1.folder.uuid)
     {shared_groups, unique}
   end
 
@@ -495,11 +517,27 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
     {converging_entries, solo} =
       Enum.split_with(entries, &(Map.get(freq, convergence_key(&1)) > 1))
 
-    converging_groups = converging_entries |> Enum.group_by(&convergence_key/1) |> Map.values()
+    converging_groups = group_preserving_order(converging_entries, &convergence_key/1)
     {converging_groups, solo}
   end
 
   defp convergence_key(entry), do: {entry.parent_uuid, entry.name || entry.folder.name}
+
+  # T6: `Enum.group_by/2 |> Map.values/1` orders groups by Erlang term
+  # order of the grouping key — for a `Folder.uuid` (UUIDv7, roughly
+  # chronological) that is nearly `inserted_at` order in practice, but not
+  # guaranteed, and for a `convergence_key/1` tuple (parent uuid, name) it
+  # is not related to `entries`' order at all. Groups instead in the order
+  # each key was first seen in `entries` — which is already the
+  # deterministic `light_machines/0` order by the time this runs.
+  defp group_preserving_order(entries, key_fun) do
+    grouped = Enum.group_by(entries, key_fun)
+
+    entries
+    |> Enum.map(key_fun)
+    |> Enum.uniq()
+    |> Enum.map(&Map.fetch!(grouped, &1))
+  end
 
   defp claimed_folder_uuids(unique, ambiguous, shared_groups, converging_groups) do
     unique_uuids = Enum.map(unique, & &1.folder.uuid)
@@ -615,9 +653,6 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
     }
   end
 
-  defp pointer_uuid(%{data: data}) when is_map(data), do: Map.get(data, "files_folder_uuid")
-  defp pointer_uuid(_), do: nil
-
   # R5/X3: a pointer that is not a well-formed UUID is treated as absent,
   # never sent into an `in ^uuids` query (which would raise a CastError).
   # Returns the CAST/downcased value — not the raw string — so an
@@ -642,6 +677,7 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
       uuids ->
         Folder
         |> where([f], f.uuid in ^uuids and is_nil(f.trashed_at))
+        |> order_by([f], asc: f.inserted_at, asc: f.uuid)
         |> repo().all()
         |> Map.new(&{&1.uuid, &1})
     end
@@ -651,7 +687,8 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
   # folder ANYWHERE (any parent, including root) — grouped by name so more
   # than one live match (different parents) is visible to `resolve_entry/4`
   # (X11). Live only (X2 — the unique index is partial, a trashed twin must
-  # not hide the live folder).
+  # not hide the live folder). T6: ordered so a name with more than one
+  # live match is itself deterministic.
   defp preload_by_name_anywhere(names) do
     case names |> Enum.reject(&is_nil/1) |> Enum.uniq() do
       [] ->
@@ -660,6 +697,7 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
       names ->
         Folder
         |> where([f], f.name in ^names and is_nil(f.trashed_at))
+        |> order_by([f], asc: f.inserted_at, asc: f.uuid)
         |> repo().all()
         |> Enum.group_by(& &1.name)
     end
@@ -671,7 +709,7 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
   defp live_pointer_claims(machines) do
     pointers =
       machines
-      |> Enum.map(&valid_uuid(pointer_uuid(&1)))
+      |> Enum.map(fn {_machine, pointer} -> valid_uuid(pointer) end)
       |> Enum.reject(&is_nil/1)
       |> Enum.uniq()
 
@@ -736,6 +774,7 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
       Folder
       |> where([f], is_nil(f.trashed_at))
       |> where([f], like(f.name, ^"#{@pending_prefix}%"))
+      |> order_by([f], asc: f.inserted_at, asc: f.uuid)
       |> repo().all()
       |> Enum.reject(&MapSet.member?(claimed_uuids, &1.uuid))
 
@@ -892,6 +931,7 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
       end
 
     scoped
+    |> order_by([f], asc: f.inserted_at, asc: f.uuid)
     |> repo().all()
     |> Enum.reject(&MapSet.member?(claimed_uuids, &1.uuid))
     |> Enum.map(&{&1, legacy_uuid(&1.name)})
@@ -1003,13 +1043,19 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
     end)
   end
 
-  # R9/R10: only the columns a plan needs (never the full row with its
-  # `metadata` jsonb), ordered by `inserted_at`/`uuid` — a deterministic,
-  # readable report order.
+  # R9/R10: only the columns a plan needs, ordered by `inserted_at`/`uuid`
+  # — a deterministic, readable report order. T8: the pointer is extracted
+  # via a jsonb fragment instead of selecting the whole (potentially
+  # large, ever-growing) `data` column — a light row returns
+  # `{struct, pointer_uuid_or_nil}`, mirroring the catalogue template's
+  # `light_catalogues/0`.
   defp light_machines do
     Machine
     |> order_by([m], asc: m.inserted_at, asc: m.uuid)
-    |> select([m], struct(m, [:uuid, :name, :data, :inserted_at]))
+    |> select([m], {
+      struct(m, [:uuid, :name, :inserted_at]),
+      fragment("?->>'files_folder_uuid'", m.data)
+    })
     |> repo().all()
   end
 
