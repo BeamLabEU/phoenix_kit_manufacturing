@@ -555,10 +555,10 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
 
   # A `:move` whose folder already sits at `parent_uuid` under `name` (or
   # an accepted `"name (N)"` suffix variant) and needs no pointer back-fill
-  # is a no-op — filtered here since this Source has no core
-  # `Action.noop?/1` to lean on. D6: a folder found through the machine's
-  # pointer keeps `name: nil` (never renamed); only a folder found by
-  # legacy name gets the desired name.
+  # is a no-op — filtered out here before it ever reaches the core engine.
+  # D6: a folder found through the machine's pointer keeps `name: nil`
+  # (never renamed); only a folder found by legacy name gets the desired
+  # name.
   defp build_move_action(entry) do
     after_move = after_move_fun(entry.record, entry.pointer, entry.folder)
 
@@ -713,11 +713,20 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
       |> Enum.reject(&is_nil/1)
       |> Enum.uniq()
 
-    Folder
-    |> where([f], f.uuid in ^pointers and is_nil(f.trashed_at))
-    |> select([f], f.uuid)
-    |> repo().all()
-    |> MapSet.new()
+    uuids =
+      case pointers do
+        [] ->
+          []
+
+        pointers ->
+          Folder
+          |> where([f], f.uuid in ^pointers and is_nil(f.trashed_at))
+          |> order_by([f], asc: f.inserted_at, asc: f.uuid)
+          |> select([f], f.uuid)
+          |> repo().all()
+      end
+
+    MapSet.new(uuids)
   end
 
   # `nil` when the pointer already matches the current (pre-move) folder —
@@ -847,6 +856,7 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
         home_rows =
           PhoenixKit.Modules.Storage.File
           |> where([f], f.folder_uuid in ^uuids)
+          |> order_by([f], asc: f.inserted_at, asc: f.uuid)
           |> select([f], {f.folder_uuid, f.original_file_name, f.status})
           |> repo().all()
 
@@ -854,6 +864,7 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
           FolderLink
           |> join(:inner, [l], f in PhoenixKit.Modules.Storage.File, on: f.uuid == l.file_uuid)
           |> where([l, _f], l.folder_uuid in ^uuids)
+          |> order_by([l, f], asc: f.inserted_at, asc: f.uuid)
           |> select([l, f], {l.folder_uuid, f.original_file_name, f.status})
           |> repo().all()
 
@@ -960,6 +971,7 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
 
     Machine
     |> where([m], m.uuid in ^uuids)
+    |> order_by([m], asc: m.inserted_at, asc: m.uuid)
     |> select([m], m.uuid)
     |> repo().all()
     |> MapSet.new()
@@ -1003,6 +1015,7 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
           PhoenixKit.Modules.Storage.File
           |> where([f], f.folder_uuid in ^uuids)
           |> group_by([f], f.folder_uuid)
+          |> order_by([f], asc: f.folder_uuid)
           |> select([f], {f.folder_uuid, count(f.uuid)})
           |> repo().all()
           |> Map.new()
@@ -1011,6 +1024,7 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
           FolderLink
           |> where([l], l.folder_uuid in ^uuids)
           |> group_by([l], l.folder_uuid)
+          |> order_by([l], asc: l.folder_uuid)
           |> select([l], {l.folder_uuid, count(l.uuid)})
           |> repo().all()
           |> Map.new()

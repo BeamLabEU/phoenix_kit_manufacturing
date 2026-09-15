@@ -1060,6 +1060,54 @@ defmodule PhoenixKitManufacturing.MediaReorganizerTest do
 
       assert orphan_uuids == [older.uuid, newer.uuid]
     end
+
+    test "pending folder's file list is ordered by inserted_at, not by row/insertion order", %{
+      user_uuid: user_uuid
+    } do
+      {:ok, folder} =
+        Storage.create_folder(%{name: "machine-attachment-pending-#{Ecto.UUID.generate()}"})
+
+      # Created in the opposite order from the `inserted_at` values they
+      # are backdated to below, so a query with no `order_by` (row/scan
+      # order) would list them newer-first — the reverse of the assertion.
+      newer_file =
+        create_file(%{
+          original_file_name: "newer.pdf",
+          folder_uuid: folder.uuid,
+          user_uuid: user_uuid
+        })
+
+      older_file =
+        create_file(%{
+          original_file_name: "older.pdf",
+          folder_uuid: folder.uuid,
+          user_uuid: user_uuid
+        })
+
+      older_time =
+        DateTime.utc_now() |> DateTime.add(-2 * 86_400, :second) |> DateTime.truncate(:second)
+
+      newer_time =
+        DateTime.utc_now() |> DateTime.add(-1 * 86_400, :second) |> DateTime.truncate(:second)
+
+      Repo.update_all(
+        from(f in PhoenixKit.Modules.Storage.File, where: f.uuid == ^older_file.uuid),
+        set: [inserted_at: older_time]
+      )
+
+      Repo.update_all(
+        from(f in PhoenixKit.Modules.Storage.File, where: f.uuid == ^newer_file.uuid),
+        set: [inserted_at: newer_time]
+      )
+
+      actions = MediaReorganizer.plan(nil, [])
+      action = Enum.find(actions, &(&1.kind == :pending and &1.folder.uuid == folder.uuid))
+
+      refute is_nil(action)
+
+      names_index = fn name -> :binary.match(action.reason, name) |> elem(0) end
+      assert names_index.("older.pdf") < names_index.("newer.pdf")
+    end
   end
 
   describe "orphan folders" do
