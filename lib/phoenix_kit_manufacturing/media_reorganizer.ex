@@ -14,12 +14,17 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
   directly (as `hook.("machine", actor_uuid)`), rather than going through
   `Attachments.parent_folder_uuid/2` — the helper live uploads use, which
   silently degrades a raising or erroring hook to `nil` (root). Here a hook
-  that raises, exits, or returns anything other than `{:ok, uuid}` or an
-  explicit `nil` is a FAILURE (R2): every move candidate is skipped and the
-  whole batch is reported once as `kind: :hook_error`, never planned as
-  root. Manufacturing has no `:attachments_folder_name` hook — the desired
-  name is always the deterministic `Attachments.folder_name_for/1` name, so
-  a `:move` action here only ever changes `parent_uuid` (never renames a
+  that raises, exits, or returns anything other than `{:ok, uuid}` (`uuid`
+  cast-valid, `""` included, never accepted) or an explicit `nil` is a
+  FAILURE (R2): every move candidate is skipped, orphan detection for this
+  plan is skipped entirely rather than assuming the parent is root (a
+  root-only scan on a failed hook would both misreport a root folder that
+  may really belong under the unreachable resolved parent and miss an
+  orphan actually sitting there), and the whole batch is reported once as
+  `kind: :hook_error`. Manufacturing has no `:attachments_folder_name` hook
+  — the desired name is always the deterministic
+  `Attachments.folder_name_for/1` name, so a `:move` action here only ever
+  changes `parent_uuid` (never renames a
   folder found by legacy name) except for a pointer back-fill riding along
   on an otherwise unchanged folder. A folder found through a machine's live
   pointer keeps its own name — this module never picks a new one for it —
@@ -64,9 +69,12 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
      any live `machine-`-prefixed folder at all (covers a legacy folder
      whose machine was hard-deleted, so orphan detection under the resolved
      parent still works even when no machine is a move candidate — X13). A
-     hook call that raises, exits, or returns anything but `{:ok, uuid}` or
-     an explicit `nil` is a FAILURE, not root (R2): every candidate is
-     skipped and the whole batch becomes one `kind: :hook_error` report.
+     hook call that raises, exits, or returns anything but `{:ok, uuid}`
+     (`uuid` cast-valid — `""` and any other malformed string are a
+     failure too) or an explicit `nil` is a FAILURE, not root (R2): every
+     candidate is skipped, orphan detection for the whole plan is skipped
+     (not scanned at root either — the true parent is unknown), and the
+     batch becomes one `kind: :hook_error` report.
   3. A machine's *current* folder is: its live pointer if it has one (kept
      as-is, `name: nil` — the owner may have renamed it, this module never
      renames a cached folder — D6); else the legacy-named live folder under
@@ -78,7 +86,13 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
   4. Two (or more) machines whose current folder resolves to the very same
      live folder are likewise unresolvable — one `kind: :duplicate` report
      per shared folder, no move for any of them (X5).
-  5. Orphan detection (below) excludes every folder claimed above — a
+  5. A live pointer's folder can leave a SEPARATE legacy-named folder
+     (`machine-<uuid>`) live somewhere else entirely — neither the current
+     folder (the pointer already names it) nor an orphan (the machine is
+     live). That stray twin gets its own `kind: :relocated` report
+     alongside whatever action the machine itself gets, so it is never
+     silently unmentioned.
+  6. Orphan detection (below) excludes every folder claimed above — a
      move's current folder, a duplicate/shared report's folders, or any
      live pointer target — so one folder never yields two actions (R4).
   """
@@ -197,13 +211,16 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
         dup_actions = Enum.map(ambiguous_dup, &build_ambiguous_duplicate_action/1)
         shared_actions = Enum.map(shared_dup, &build_shared_duplicate_action/1)
 
-        all_actions = move_actions ++ dup_actions ++ shared_actions
+        stray_actions =
+          entries |> Enum.filter(& &1.stray_legacy) |> Enum.map(&build_relocated_action/1)
+
+        all_actions = move_actions ++ dup_actions ++ shared_actions ++ stray_actions
         claimed = claimed_folder_uuids(unique, ambiguous_dup, shared_dup)
 
         {finalize_counts(all_actions), claimed, parent_uuid}
 
       :error ->
-        {hook_error_action(length(candidates)), claimed_folder_uuids([], [], []), nil}
+        {hook_error_action(length(candidates)), claimed_folder_uuids([], [], []), :unknown}
     end
   end
 
@@ -215,12 +232,26 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
     end
   end
 
+  # R2: `{:ok, uuid}` is only accepted when `uuid` actually casts as a
+  # well-formed UUID — `{:ok, ""}` and any other non-UUID string are hook
+  # failures, not "root" and not a literal (invalid) parent to write into
+  # a folder's `parent_uuid`.
   defp guarded_hook_call(fun) do
     case fun.() do
-      {:ok, uuid} when is_binary(uuid) -> {:ok, uuid}
-      {:ok, nil} -> {:ok, nil}
-      nil -> {:ok, nil}
-      _other -> :error
+      {:ok, uuid} when is_binary(uuid) ->
+        case valid_uuid(uuid) do
+          nil -> :error
+          cast -> {:ok, cast}
+        end
+
+      {:ok, nil} ->
+        {:ok, nil}
+
+      nil ->
+        {:ok, nil}
+
+      _other ->
+        :error
     end
   rescue
     _ -> :error
@@ -254,19 +285,37 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
     pointer_folder = p.pointer && Map.get(by_pointer, p.pointer)
 
     if pointer_folder do
-      Map.merge(p, %{folder: pointer_folder, via: :pointer, ambiguous: nil})
+      stray = stray_legacy_twin(p.legacy_name, by_name, pointer_folder.uuid)
+
+      Map.merge(p, %{
+        folder: pointer_folder,
+        via: :pointer,
+        ambiguous: nil,
+        stray_legacy: stray
+      })
     else
       matches = Map.get(by_name, p.legacy_name, [])
       under_parent = parent_uuid && Enum.find(matches, &(&1.parent_uuid == parent_uuid))
       at_root = Enum.find(matches, &is_nil(&1.parent_uuid))
 
       case {under_parent, at_root} do
-        {nil, nil} -> Map.merge(p, %{folder: nil, via: nil, ambiguous: nil})
-        {f, nil} -> Map.merge(p, %{folder: f, via: :name, ambiguous: nil})
-        {nil, f} -> Map.merge(p, %{folder: f, via: :name, ambiguous: nil})
-        {f1, f2} -> Map.merge(p, %{folder: nil, via: nil, ambiguous: {f1, f2}})
+        {nil, nil} -> Map.merge(p, %{folder: nil, via: nil, ambiguous: nil, stray_legacy: nil})
+        {f, nil} -> Map.merge(p, %{folder: f, via: :name, ambiguous: nil, stray_legacy: nil})
+        {nil, f} -> Map.merge(p, %{folder: f, via: :name, ambiguous: nil, stray_legacy: nil})
+        {f1, f2} -> Map.merge(p, %{folder: nil, via: nil, ambiguous: {f1, f2}, stray_legacy: nil})
       end
     end
+  end
+
+  # A legacy-named folder live somewhere else while the pointer already
+  # names the record's real current folder — not this machine's current
+  # folder, and not an orphan either (the machine is live) — reported so
+  # it never goes permanently unseen (a file-bearing folder nobody would
+  # ever look at again).
+  defp stray_legacy_twin(legacy_name, by_name, current_folder_uuid) do
+    by_name
+    |> Map.get(legacy_name, [])
+    |> Enum.find(&(&1.uuid != current_folder_uuid))
   end
 
   # Splits resolved entries into: `unique` (one machine ↔ one folder, safe
@@ -376,6 +425,19 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
       op: :report,
       counts: nil,
       reason: "folder #{folder.uuid} is claimed by more than one record: #{labels}"
+    }
+  end
+
+  defp build_relocated_action(%{record: machine, stray_legacy: folder}) do
+    %{
+      source: "manufacturing",
+      kind: :relocated,
+      op: :report,
+      label: machine.name,
+      folder: folder,
+      counts: nil,
+      reason:
+        "legacy folder #{folder.uuid} is live under a different parent — left alone, never adopted"
     }
   end
 
@@ -626,6 +688,14 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
   # "orphans" container; a legacy folder claimed above (a live machine's
   # current folder, or named in a duplicate/shared report) is excluded
   # (R4 — one folder gets at most one action).
+  # A failed hook leaves the true parent unknown — scanning root as if it
+  # were the verified answer would both wrongly report a root folder that
+  # actually belongs under the (unreachable) resolved parent, and wrongly
+  # skip an orphan sitting under whatever that parent would have been.
+  # Orphan detection for this plan is skipped entirely; the `:hook_error`
+  # report already explains why.
+  defp orphan_actions(:unknown, _claimed_uuids), do: []
+
   defp orphan_actions(resolved_parent, claimed_uuids) do
     case legacy_candidate_folders(resolved_parent, claimed_uuids) do
       [] ->

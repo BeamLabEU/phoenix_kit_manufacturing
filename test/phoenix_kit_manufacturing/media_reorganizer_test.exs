@@ -30,6 +30,14 @@ defmodule PhoenixKitManufacturing.MediaReorganizerTest do
     def parent("machine", _actor), do: {:error, :timeout}
   end
 
+  defmodule EmptyStringHook do
+    def parent("machine", _actor), do: {:ok, ""}
+  end
+
+  defmodule GarbageUuidHook do
+    def parent("machine", _actor), do: {:ok, "not-a-uuid"}
+  end
+
   setup do
     on_exit(fn ->
       Application.delete_env(:phoenix_kit_manufacturing, :attachments_parent_folder)
@@ -377,6 +385,98 @@ defmodule PhoenixKitManufacturing.MediaReorganizerTest do
     error = Enum.find(actions, &(&1.kind == :hook_error))
     refute is_nil(error)
     assert error.reason =~ "2 machine(s) skipped"
+  end
+
+  test "hook returns {:ok, \"\"} → treated as a hook failure, not root (R2)" do
+    machine = new_machine(%{name: "Press 12"})
+    {:ok, _folder} = Storage.create_folder(%{name: "machine-#{machine.uuid}"})
+
+    Application.put_env(
+      :phoenix_kit_manufacturing,
+      :attachments_parent_folder,
+      {EmptyStringHook, :parent}
+    )
+
+    actions = MediaReorganizer.plan(nil, [])
+
+    refute Enum.any?(actions, &(&1.kind == :machine))
+    error = Enum.find(actions, &(&1.kind == :hook_error))
+    refute is_nil(error)
+    assert error.reason =~ "1 machine(s) skipped"
+  end
+
+  test "hook returns {:ok, \"not-a-uuid\"} → treated as a hook failure, not root (R2)" do
+    machine = new_machine(%{name: "Press 12"})
+    {:ok, _folder} = Storage.create_folder(%{name: "machine-#{machine.uuid}"})
+
+    Application.put_env(
+      :phoenix_kit_manufacturing,
+      :attachments_parent_folder,
+      {GarbageUuidHook, :parent}
+    )
+
+    actions = MediaReorganizer.plan(nil, [])
+
+    refute Enum.any?(actions, &(&1.kind == :machine))
+    error = Enum.find(actions, &(&1.kind == :hook_error))
+    refute is_nil(error)
+    assert error.reason =~ "1 machine(s) skipped"
+  end
+
+  test "hook fails → orphan folders are not scanned at all, not even at root (only the hook_error report explains the skip)" do
+    # A live machine so the hook actually runs and the hook_error report is
+    # non-empty.
+    machine = new_machine(%{name: "Press 12"})
+    {:ok, _folder} = Storage.create_folder(%{name: "machine-#{machine.uuid}"})
+
+    # A genuine orphan at root: a working hook would still find and report
+    # it (see the "orphan folders" describe block below) — a failing hook
+    # must not fall back to scanning root as if that were the verified
+    # answer.
+    ghost = new_machine()
+    {:ok, orphan_folder} = Storage.create_folder(%{name: "machine-#{ghost.uuid}"})
+    {:ok, _} = Machines.delete_machine(ghost)
+
+    Application.put_env(
+      :phoenix_kit_manufacturing,
+      :attachments_parent_folder,
+      {RaisingHook, :parent}
+    )
+
+    actions = MediaReorganizer.plan(nil, [])
+
+    refute Enum.any?(actions, &(&1.kind == :orphan and &1.folder.uuid == orphan_folder.uuid))
+    error = Enum.find(actions, &(&1.kind == :hook_error))
+    refute is_nil(error)
+  end
+
+  test "a legacy-named twin live elsewhere is reported :relocated alongside the pointer-found folder's own action" do
+    machine = new_machine(%{name: "Press 12"})
+    {:ok, target} = Storage.create_folder(%{name: "Machines"})
+    {:ok, current} = Storage.create_folder(%{name: "Renamed by hand", parent_uuid: target.uuid})
+    {:ok, twin} = Storage.create_folder(%{name: "machine-#{machine.uuid}"})
+
+    {:ok, machine} =
+      Machines.update_machine(machine, %{data: %{"files_folder_uuid" => current.uuid}})
+
+    Process.put(:target_folder, target.uuid)
+    Application.put_env(:phoenix_kit_manufacturing, :attachments_parent_folder, {Hook, :parent})
+
+    actions = MediaReorganizer.plan(nil, [])
+
+    relocated = Enum.find(actions, &(&1.kind == :relocated))
+    refute is_nil(relocated)
+    assert relocated.source == "manufacturing"
+    assert relocated.op == :report
+    assert relocated.label == machine.name
+    assert relocated.folder.uuid == twin.uuid
+
+    # the machine's own current folder already sits at the resolved parent
+    # under its own (kept, not renamed) name — nothing else to move.
+    refute Enum.any?(actions, &(&1.kind == :machine))
+
+    # the twin is never also reported as an orphan (its machine is live).
+    refute Enum.any?(actions, &(&1.kind == :orphan and &1.folder.uuid == twin.uuid))
   end
 
   test "legacy folder a machine's pointer claims (under a different machine's stale name) is never also reported as an orphan (R4)" do
