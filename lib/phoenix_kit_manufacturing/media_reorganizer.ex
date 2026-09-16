@@ -2,13 +2,12 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
   @moduledoc """
   Manufacturing's media-reorganizer plan source.
 
-  Not compiled against a core `PhoenixKit.Modules.Storage.Reorganizer.Source`
-  behaviour — today's hex core does not ship the engine yet. This module
-  declares no `@behaviour` and returns plain maps; see
-  `PhoenixKitManufacturing.media_reorganizer/0` for the registration comment.
-  Once core ships the engine, `plan/2`'s contract (`plan(actor_uuid, opts)
-  :: [map()]`) already matches `Source.plan/2` — the only follow-up is
-  adding `@behaviour`/`@impl`.
+  Implements `PhoenixKit.Modules.Storage.Reorganizer.Source` (core ≥ 2.24.0)
+  without declaring `@behaviour`: the `phoenix_kit ~> 2.0` pin still admits
+  older cores that lack the module, where `@behaviour` would warn. `plan/2`
+  (`plan(actor_uuid, opts) :: [map()]`) matches `Source.plan/2`; once the pin
+  floor reaches 2.24.0 the only follow-up is adding `@behaviour`/`@impl`. See
+  `PhoenixKitManufacturing.media_reorganizer/0` for the registration.
 
   `plan/2` calls the host's configured `:attachments_parent_folder` hook
   directly (as `hook.("machine", actor_uuid)`), rather than going through
@@ -707,12 +706,11 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
     MapSet.new(unique_uuids ++ ambiguous_uuids ++ shared_uuids ++ converging_uuids)
   end
 
-  # A `:move` whose folder already sits at `parent_uuid` under `name` (or
-  # an accepted `"name (N)"` suffix variant) and needs no pointer back-fill
-  # is a no-op — filtered out here before it ever reaches the core engine.
-  # D6: a folder found through the machine's pointer keeps `name: nil`
-  # (never renamed); only a folder found by legacy name gets the desired
-  # name.
+  # A `:move` whose folder already sits at `parent_uuid` under `name` and
+  # needs no pointer back-fill is a no-op — filtered out here before it ever
+  # reaches the core engine. D6: a folder found through the machine's
+  # pointer keeps `name: nil` (never renamed); only a folder found by legacy
+  # name gets the desired name.
   defp build_move_action(entry) do
     after_move = after_move_fun(entry.record, entry.pointer, entry.folder)
 
@@ -740,18 +738,15 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
   # usual numeric suffix on a genuine name collision with another folder).
   defp noop_move?(%Folder{parent_uuid: parent_uuid}, parent_uuid, nil), do: true
 
+  # A binary `name` only ever comes from the legacy-name track, whose folder
+  # was looked up by that exact name — so an exact match is the only case.
+  # No `"name (N)"` variant check: a live same-name folder under the target
+  # would itself have been found by that lookup (ambiguous, not a move), and
+  # a pointer-found folder the engine suffixed on collision is matched by
+  # the `name: nil` clause above on the next plan.
   defp noop_move?(%Folder{parent_uuid: parent_uuid, name: name}, parent_uuid, name), do: true
 
-  defp noop_move?(%Folder{parent_uuid: parent_uuid, name: folder_name}, parent_uuid, name)
-       when is_binary(name) do
-    suffixed_variant?(folder_name, name)
-  end
-
   defp noop_move?(_folder, _parent_uuid, _name), do: false
-
-  defp suffixed_variant?(folder_name, name) do
-    Regex.match?(~r/^#{Regex.escape(name)} \(\d+\)$/, folder_name)
-  end
 
   defp build_ambiguous_duplicate_action(%{record: machine, ambiguous: {f1, f2}}) do
     %{

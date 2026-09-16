@@ -1538,4 +1538,85 @@ defmodule PhoenixKitManufacturing.MediaReorganizerTest do
       assert log =~ "unexpected"
     end
   end
+
+  # Everything above asserts the plan maps in isolation. These run the plan
+  # through core's real engine (`Action.new!/1` normalization, `noop?/1`,
+  # and `apply_one/1`), so a shape drift between this Source and the engine
+  # — or a plan that doesn't converge once applied — fails here.
+  describe "through the core engine" do
+    alias PhoenixKit.Modules.Storage.Reorganizer
+
+    defp engine_run(apply?) do
+      {:ok, report} =
+        Reorganizer.run(nil, sources: [MediaReorganizer], apply?: apply?, pending_days: 7)
+
+      report.actions
+    end
+
+    test "legacy folder at root, no pointer → moved under the hook's parent and pointer back-filled, then converges" do
+      machine = new_machine(%{name: "Press 12"})
+      {:ok, target} = Storage.create_folder(%{name: "Machines"})
+      {:ok, folder} = Storage.create_folder(%{name: "machine-#{machine.uuid}"})
+
+      {:ok, machine} =
+        Machines.update_machine(machine, %{data: %{"featured_image_uuid" => "keep-me"}})
+
+      Process.put(:target_folder, target.uuid)
+      Application.put_env(:phoenix_kit_manufacturing, :attachments_parent_folder, {Hook, :parent})
+
+      [action] = Enum.filter(engine_run(true), &(&1.kind == :machine))
+      assert action.outcome in [:moved, :backfilled]
+
+      moved = Storage.get_folder(folder.uuid)
+      assert moved.parent_uuid == target.uuid
+      assert moved.name == "machine-#{machine.uuid}"
+
+      reloaded = Machines.get_machine(machine.uuid)
+      assert reloaded.data["files_folder_uuid"] == folder.uuid
+      assert reloaded.data["featured_image_uuid"] == "keep-me"
+
+      assert engine_run(false) |> Enum.filter(&(&1.source == "manufacturing")) == []
+    end
+
+    test "pointer folder colliding with a same-name folder under the target lands suffixed, then converges" do
+      machine = new_machine(%{name: "Press 12"})
+      {:ok, target} = Storage.create_folder(%{name: "Machines"})
+      {:ok, _other} = Storage.create_folder(%{name: "Drawings", parent_uuid: target.uuid})
+      {:ok, folder} = Storage.create_folder(%{name: "Drawings"})
+
+      {:ok, _machine} =
+        Machines.update_machine(machine, %{data: %{"files_folder_uuid" => folder.uuid}})
+
+      Process.put(:target_folder, target.uuid)
+      Application.put_env(:phoenix_kit_manufacturing, :attachments_parent_folder, {Hook, :parent})
+
+      [action] = Enum.filter(engine_run(true), &(&1.kind == :machine))
+      assert action.outcome == :moved_renamed
+
+      moved = Storage.get_folder(folder.uuid)
+      assert moved.parent_uuid == target.uuid
+      assert moved.name == "Drawings (2)"
+
+      assert engine_run(false) |> Enum.filter(&(&1.source == "manufacturing")) == []
+    end
+
+    test "stale empty pending folder is trashed on apply" do
+      {:ok, folder} =
+        Storage.create_folder(%{name: "machine-attachment-pending-#{Ecto.UUID.generate()}"})
+
+      old =
+        DateTime.utc_now() |> DateTime.add(-30 * 86_400, :second) |> DateTime.truncate(:second)
+
+      Repo.update_all(
+        from(f in Storage.Folder, where: f.uuid == ^folder.uuid),
+        set: [inserted_at: old]
+      )
+
+      Application.put_env(:phoenix_kit_manufacturing, :attachments_parent_folder, {Hook, :parent})
+
+      action = Enum.find(engine_run(true), &(&1.kind == :pending))
+      assert action.outcome == :trashed
+      assert Storage.get_folder(folder.uuid).trashed_at
+    end
+  end
 end

@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.4.4 - 2026-09-16
+
+### Added
+
+- **Media reorganizer source for machines** (`PhoenixKitManufacturing.MediaReorganizer`,
+  registered via `media_reorganizer/0`, used by core's
+  `mix phoenix_kit.media.reorganize` on phoenix_kit ≥ 2.24.0). Plans moving
+  existing machine attachment folders under the parent set by the
+  `:attachments_parent_folder` hook and fills in any missing
+  `data["files_folder_uuid"]` pointers. Folders it can't place safely are
+  reported instead of moved: duplicates, stray copies, orphans of deleted
+  machines, and folders when the hook fails or returns root. Stale empty
+  `machine-attachment-pending-*` folders are trashed. Without a configured
+  hook, it only produces reports.
+
+### Changed
+
+- Updated dependencies: `phoenix_kit` 2.24.0, `phoenix_kit_comments` 0.4.8,
+  `phoenix_kit_entities` 0.4.15, `phoenix_kit_locations` 0.5.1,
+  `phoenix_live_view` 1.2.12.
+
 ## 0.4.3 - 2026-09-14
 
 ### Added
