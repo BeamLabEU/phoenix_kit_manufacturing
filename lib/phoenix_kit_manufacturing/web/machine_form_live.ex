@@ -140,6 +140,7 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
 
   import PhoenixKitWeb.Components.Core.Icon, only: [icon: 1]
   import PhoenixKitWeb.Components.Core.Input
+  import PhoenixKitWeb.Components.Core.DecimalInput
   import PhoenixKitWeb.Components.Core.Select
   import PhoenixKitWeb.Components.Core.Textarea
   import PhoenixKitWeb.Components.Core.Checkbox
@@ -1042,7 +1043,7 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
     ~H"""
     <div>
       <.input :if={@kind == :text} type="text" name={@field_name} value={@raw_value} label={@label} />
-      <.input :if={@kind == :number} type="number" name={@field_name} value={@raw_value} label={@label} />
+      <.decimal_input :if={@kind == :number} name={@field_name} value={@raw_value} label={@label} />
       <.input :if={@kind == :date} type="date" name={@field_name} value={@raw_value} label={@label} />
       <.select
         :if={@kind == :select}
