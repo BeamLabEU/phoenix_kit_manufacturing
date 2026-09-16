@@ -1,7 +1,7 @@
 defmodule PhoenixKitManufacturing.MixProject do
   use Mix.Project
 
-  @version "0.4.4"
+  @version "0.4.5"
   @source_url "https://github.com/BeamLabEU/phoenix_kit_manufacturing"
 
   def project do
@@ -84,6 +84,10 @@ defmodule PhoenixKitManufacturing.MixProject do
       # .beam, so a precompiled artefact fails on first mount rather than at
       # compile time). Supersedes the older 1.7.190 floor, which covered
       # migration V144 — the tables this module's schemas map to.
+      # `Web.MachineFormLive` also imports `DecimalInput` / calls
+      # `Number.parse_decimal/2` (core 2.26.0). The pin deliberately stays
+      # `~> 2.0` anyway — see test/core_pin_conformance_test.exs — so a host
+      # on core < 2.26 must upgrade core alongside this module.
       pk_dep(:phoenix_kit, "~> 2.0"),
       # phoenix_kit_comments: 0.2.8 ships `subscribe/2`/`unsubscribe/2` and
       # the list form of `count_comments/3` (`Manufacturing.Comments`);

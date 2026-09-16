@@ -146,6 +146,7 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
   import PhoenixKitWeb.Components.Core.Checkbox
   import PhoenixKitManufacturing.Web.Components.FilesCard, only: [files_card_body: 1]
 
+  alias PhoenixKit.Utils.Number
   alias PhoenixKitLocations.Web.Components.PlacePicker
   alias PhoenixKitManufacturing.{Attachments, Comments, EntitiesRegistry, Errors, Machines, Paths}
   alias PhoenixKitManufacturing.Schemas.Machine
@@ -488,8 +489,9 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
   # Merges the Location card's picked uuids (tracked in socket assigns, see
   # the moduledoc — never actual `<form>` fields), coerces boolean-typed
   # dynamic `metadata` fields from their submitted "true"/"on"/"false"
-  # strings into real booleans (every other metadata value is stored
-  # exactly as submitted, see `Machines.merged_field_template/1` doc), and
+  # strings into real booleans, normalizes parseable number-typed fields to
+  # a dot decimal (every other metadata value is stored exactly as
+  # submitted, see `Machines.merged_field_template/1` doc), and
   # merges the Files card's folder/featured-image uuids into `params["data"]`.
   defp prepare_params(params, socket) do
     params
@@ -504,14 +506,28 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLive do
 
   defp coerce_metadata(metadata, merged_template) do
     Enum.reduce(merged_template, metadata, fn row, acc ->
-      if template_row(row, :type) == "boolean" do
-        key = template_row(row, :key)
-        coerce_boolean_field(acc, key, Map.get(metadata, key))
-      else
-        acc
+      key = template_row(row, :key)
+
+      case template_row(row, :type) do
+        "boolean" -> coerce_boolean_field(acc, key, Map.get(metadata, key))
+        "number" -> normalize_number_field(acc, key, Map.get(metadata, key))
+        _ -> acc
       end
     end)
   end
+
+  # `<.decimal_input>` submits free text, so a comma-typed "2,5" would
+  # otherwise be stored verbatim next to other machines' "2.5". Parseable
+  # text is stored in one canonical dot form; blank or unparseable text is
+  # left exactly as submitted (metadata was never rejected per field).
+  defp normalize_number_field(acc, key, value) when is_binary(value) do
+    case Number.parse_decimal(value) do
+      {:ok, decimal} -> Map.put(acc, key, Decimal.to_string(decimal, :normal))
+      {:error, _reason} -> acc
+    end
+  end
+
+  defp normalize_number_field(acc, _key, _value), do: acc
 
   # Only coerce values that plausibly came from a checkbox. A field whose
   # template type was later switched to "boolean" may still hold an old

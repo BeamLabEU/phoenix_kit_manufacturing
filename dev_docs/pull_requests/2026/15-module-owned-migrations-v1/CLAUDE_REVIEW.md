@@ -108,3 +108,32 @@ PR title/body, full diff) — zero hits.
 **PASS — Ship.** Both review passes independently reached PASS/READY with
 zero blocking findings; the handful of nitpicks were wording/test-message
 polish, all addressed above.
+
+---
+
+## Post-merge review (Claude Opus 5, 2026-09-16)
+
+Reviewed the merged diff (`7cd333f`) together with PR #14 before cutting
+0.4.5. Skills applied first: `elixir:ecto-thinking`.
+
+Checked:
+
+- **Protocol vs. core's driver:** `PhoenixKit.Migrations.Modules` (2.26.1)
+  calls `migrated_version_runtime(prefix:)` and `current_version/0`, and
+  both exist with the expected arities. `migration_module/0` is a real
+  `PhoenixKit.Module` callback, so the `@impl` compiles cleanly.
+- **`up/1` / `down/1` re-read the version inside migration context**
+  before emitting SQL. `down/1` only runs when the marker is above the
+  target, so `COMMENT ON TABLE ... IS NULL` never hits a missing table.
+- **Prefix safety:** every interpolated prefix (in `qualify_table`, and
+  the `nspname = '...'` literals inside the `DO $$` guards) first goes
+  through `Helpers.validate_prefix!/1`.
+- **Index `IF NOT EXISTS`** checks unqualified index names against the
+  table's own schema, so it stays idempotent for non-`public` prefixes.
+- **`column_widths/0`** feeds both the DDL and `changeset/2`, so the two
+  can't drift.
+- **No FK on the soft references:** confirmed. Nothing in the chain can
+  drop a table.
+
+**Findings: none.** The core-version issue found in this pass came from
+PR #14, not this PR (see `14-decimal-input/CLAUDE_REVIEW.md`).

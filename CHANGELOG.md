@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 0.4.5 - 2026-09-16
 
 ### Added
 
@@ -23,6 +23,21 @@ All notable changes to this project will be documented in this file.
   there. `PhoenixKitManufacturing.Schemas.Machine.column_widths/0` is now
   the single shape authority for both the chain's DDL and `changeset/2`'s
   own length validations.
+
+### Changed
+
+- Number-type spec fields on the machine form (from a machine type's
+  `field_template`) now use core's `<.decimal_input>` instead of a browser
+  number control. A comma and a dot both work, and a value is no longer
+  lost because of the page locale. (#14)
+- Parseable number-type spec values are stored in one dot-decimal form
+  (`"2,5"` → `"2.5"`). Blank or unparseable text is still stored as
+  submitted.
+- **Requires phoenix_kit ≥ 2.26.0 at compile time**, the first release with
+  `PhoenixKitWeb.Components.Core.DecimalInput` and
+  `PhoenixKit.Utils.Number.parse_decimal/2`. The Hex requirement stays at
+  `~> 2.0` (repo policy, see `test/core_pin_conformance_test.exs`), so a
+  host on an older core must upgrade core too.
 
 ## 0.4.4 - 2026-09-16
 

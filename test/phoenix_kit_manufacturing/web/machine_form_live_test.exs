@@ -432,6 +432,26 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLiveTest do
       assert machine.metadata["power_kw"] == "0.25"
     end
 
+    test "a comma-typed number-type value is stored in canonical dot form", %{
+      conn: conn,
+      type: type
+    } do
+      conn = put_test_scope(conn, fake_scope())
+      {:ok, view, _html} = live(conn, new_path())
+
+      render_click(view, "toggle_type", %{"uuid" => type.uuid})
+
+      assert {:error, {:live_redirect, _}} =
+               view
+               |> form("#machine-form",
+                 machine: %{name: "CNC-25", status: "active", metadata: %{"power_kw" => "2,5"}}
+               )
+               |> render_submit()
+
+      assert [machine] = Machines.list_machines()
+      assert machine.metadata["power_kw"] == "2.5"
+    end
+
     test "a number-type field still stores unparseable text as submitted, same as before", %{
       conn: conn,
       type: type
