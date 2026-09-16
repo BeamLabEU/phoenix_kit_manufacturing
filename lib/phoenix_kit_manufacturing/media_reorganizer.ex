@@ -17,15 +17,15 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
   that raises, exits, or returns anything other than `{:ok, uuid}` (`uuid`
   cast-valid — cast through `Ecto.UUID.cast/1`, which also normalises
   case — `""` and any other malformed string never accepted) or an
-  explicit `nil` is a FAILURE (R2): every move candidate is skipped,
-  orphan detection for this plan is skipped entirely rather than assuming
-  the parent is root (a root-only scan on a failed hook would both
-  misreport a root folder that may really belong under the unreachable
-  resolved parent and miss an orphan actually sitting there), and the
-  whole batch is reported once as `kind: :hook_error` (T4: always, even
-  when the failure's only visible effect is that the orphan pass gets
-  skipped). A configured `{mod, fun}` that does not actually resolve to a
-  callable function (a typo, a removed function) is a DIFFERENT failure
+  explicit `nil` is a FAILURE (R2): every move candidate is skipped, and
+  the whole batch is reported once as `kind: :hook_error` (T4: always,
+  even when the failure's only visible effect is that no move happens).
+  Orphan detection still runs at root scope (V2/U4 — the orphan scan
+  scope is root plus every parent that came from a SUCCESSFUL hook
+  answer; a failed hook contributes no such parent, so the scope stays
+  root-only rather than being skipped). A configured `{mod, fun}` that
+  does not actually resolve to a callable function (a typo, a removed
+  function) is a DIFFERENT failure
   from "no hook configured at all" (T3): it is reported as one
   `kind: :hook_error` naming the `{mod, fun}` — never silently downgraded
   to "no hook" (E1) without telling the owner why nothing moved. An
@@ -87,12 +87,12 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
      or returns anything but `{:ok, uuid}` (`uuid` cast-valid and
      case-normalised — `""` and any other malformed string are a failure
      too) or an explicit `nil` is a FAILURE, not root (R2): every
-     candidate is skipped, orphan detection for the whole plan is skipped
-     (not scanned at root either — the true parent is unknown), and the
-     batch becomes one `kind: :hook_error` report (T4: reported even when
-     every candidate's move is unaffected and only the orphan pass is
-     skipped). A configured hook that is not actually callable (T3) is the
-     same kind of failure, reported before any candidate is even touched.
+     candidate is skipped, and the batch becomes one `kind: :hook_error`
+     report (T4: reported even when every candidate's move is unaffected).
+     Orphan detection still runs at root scope (V2/U4 — the true parent is
+     unknown, but the scan scope always includes root regardless). A
+     configured hook that is not actually callable (T3) is the same kind
+     of failure, reported before any candidate is even touched.
   3. A machine's *current* folder is: its live pointer if it has one (kept
      as-is, `name: nil` — the owner may have renamed it, this module never
      renames a cached folder — D6); else the legacy-named live folder under
@@ -385,7 +385,7 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
         {finalize_counts(all_actions), claimed, parent_uuid}
 
       :error ->
-        {hook_error_action(candidates), claimed_folder_uuids([], [], [], []), :unknown}
+        {hook_error_action(candidates), claimed_folder_uuids([], [], [], []), nil}
     end
   end
 
@@ -1076,17 +1076,14 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
   # current folder, or named in a duplicate/shared/converging report) is
   # excluded (R4 — one folder gets at most one action).
   #
-  # `resolved_parent` is `nil` in two cases, both scanning root only: no
-  # hook is configured, or no machine was a move candidate at all (F4/R8 —
-  # the hook is never called just to widen this scan). A failed hook
-  # (`:unknown`) leaves the true parent unknown — scanning root as if it
-  # were the verified answer would both wrongly report a root folder that
-  # actually belongs under the (unreachable) resolved parent, and wrongly
-  # skip an orphan sitting under whatever that parent would have been.
-  # Orphan detection for this plan is skipped entirely; the `:hook_error`
-  # report already explains why.
-  defp orphan_actions(:unknown, _claimed_uuids), do: []
-
+  # `resolved_parent` is `nil` in three cases, all scanning root only: no
+  # hook is configured, no machine was a move candidate at all (F4/R8 — the
+  # hook is never called just to widen this scan), or the hook failed
+  # (bad config, raise/exit, or a bad return value) so the true parent is
+  # unknown (V2/U4 — the scan scope is root plus every parent that came
+  # from a SUCCESSFUL hook answer; a failed hook contributes no such
+  # parent, so the scope stays root-only rather than skipping the scan).
+  # The `:hook_error` report already explains why nothing moved.
   defp orphan_actions(resolved_parent, claimed_uuids) do
     case legacy_candidate_folders(resolved_parent, claimed_uuids) do
       [] ->

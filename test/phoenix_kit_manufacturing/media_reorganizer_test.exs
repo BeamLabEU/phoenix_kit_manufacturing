@@ -423,16 +423,16 @@ defmodule PhoenixKitManufacturing.MediaReorganizerTest do
     assert error.reason =~ "1 machine(s) skipped"
   end
 
-  test "hook fails → orphan folders are not scanned at all, not even at root (only the hook_error report explains the skip)" do
+  test "hook fails → orphan scan still covers root (V2/U4), alongside the hook_error report" do
     # A live machine so the hook actually runs and the hook_error report is
     # non-empty.
     machine = new_machine(%{name: "Press 12"})
     {:ok, _folder} = Storage.create_folder(%{name: "machine-#{machine.uuid}"})
 
-    # A genuine orphan at root: a working hook would still find and report
-    # it (see the "orphan folders" describe block below) — a failing hook
-    # must not fall back to scanning root as if that were the verified
-    # answer.
+    # A genuine orphan at root: the scan scope is always root plus every
+    # parent from a SUCCESSFUL hook answer — a failed hook contributes no
+    # such parent, but root stays in scope regardless (V2/U4), so this is
+    # still found and reported.
     ghost = new_machine()
     {:ok, orphan_folder} = Storage.create_folder(%{name: "machine-#{ghost.uuid}"})
     {:ok, _} = Machines.delete_machine(ghost)
@@ -445,7 +445,7 @@ defmodule PhoenixKitManufacturing.MediaReorganizerTest do
 
     actions = MediaReorganizer.plan(nil, [])
 
-    refute Enum.any?(actions, &(&1.kind == :orphan and &1.folder.uuid == orphan_folder.uuid))
+    assert Enum.any?(actions, &(&1.kind == :orphan and &1.folder.uuid == orphan_folder.uuid))
     error = Enum.find(actions, &(&1.kind == :hook_error))
     refute is_nil(error)
   end
