@@ -398,6 +398,66 @@ defmodule PhoenixKitManufacturing.Web.MachineFormLiveTest do
       assert [machine] = Machines.list_machines()
       assert machine.metadata["networked"] == false
     end
+
+    test "a number-type field accepts both a comma and a dot decimal, unrounded", %{
+      conn: conn,
+      type: type
+    } do
+      conn = put_test_scope(conn, fake_scope())
+      {:ok, view, _html} = live(conn, new_path())
+
+      render_click(view, "toggle_type", %{"uuid" => type.uuid})
+
+      html =
+        view
+        |> form("#machine-form",
+          machine: %{name: "CNC-23", status: "active", metadata: %{"power_kw" => "2,5"}}
+        )
+        |> render_change()
+
+      # `<.decimal_input>` echoes back the raw text unchanged (it's a
+      # binary, not a Decimal) — a comma typed here never gets silently
+      # coerced or rounded, unlike the old `type="number"` control whose
+      # locale-dependent parsing could swallow it.
+      assert html =~ "2,5"
+
+      assert {:error, {:live_redirect, _}} =
+               view
+               |> form("#machine-form",
+                 machine: %{name: "CNC-23", status: "active", metadata: %{"power_kw" => "0.25"}}
+               )
+               |> render_submit()
+
+      assert [machine] = Machines.list_machines()
+      assert machine.metadata["power_kw"] == "0.25"
+    end
+
+    test "a number-type field still stores unparseable text as submitted, same as before", %{
+      conn: conn,
+      type: type
+    } do
+      conn = put_test_scope(conn, fake_scope())
+      {:ok, view, _html} = live(conn, new_path())
+
+      render_click(view, "toggle_type", %{"uuid" => type.uuid})
+
+      # The dynamic `metadata` map was never server-validated per field
+      # (only the boolean kind gets coerced, see `coerce_metadata/2`) —
+      # swapping the widget doesn't add new rejection behavior.
+      assert {:error, {:live_redirect, _}} =
+               view
+               |> form("#machine-form",
+                 machine: %{
+                   name: "CNC-24",
+                   status: "active",
+                   metadata: %{"power_kw" => "not-a-number"}
+                 }
+               )
+               |> render_submit()
+
+      assert [machine] = Machines.list_machines()
+      assert machine.metadata["power_kw"] == "not-a-number"
+    end
   end
 
   describe "Operations tab" do
