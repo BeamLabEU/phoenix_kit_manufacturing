@@ -61,8 +61,12 @@ defmodule PhoenixKitManufacturing.Migrations do
 
   There is no other discrepancy anywhere — V144's source, core's
   `ExpectedSchema` manifest, and a live fully-migrated database all agree
-  byte-for-byte on all 3 tables' full shape today. This is a clean Phase-0
-  adoption: V1 changes NOTHING except stamping the marker.
+  on all 3 tables' full shape today: every column's type, default, and
+  nullability (the manifest's authoritative `revisions` field, not its
+  `create:` ADD-COLUMN text, which — being a repair-path fragment —
+  omits `NOT NULL` on a handful of columns that are in fact non-null;
+  the tests below compare against `revisions`, not `create:`). This is a
+  clean Phase-0 adoption: V1 changes NOTHING except stamping the marker.
 
   ### Phase 0 — this V1 adopts, and changes NOTHING
 

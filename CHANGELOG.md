@@ -16,7 +16,7 @@ All notable changes to this project will be documented in this file.
   pure Phase-0 adoption with no shape change of any kind (unlike
   `phoenix_kit_customer_support`'s V1, there is no analogous nullability
   correction here: V144's source, core's `ExpectedSchema` manifest, and a
-  live database all already agree byte-for-byte on all 3 tables).
+  live database all already agree on all 3 tables' shape).
   `phoenix_kit_machines` has never carried a `COMMENT` before — the
   previously-published 0.2.0 module tracked its own version by structural
   probing, not a table comment — so `pkm_schema:1` is the first one stamped

@@ -532,10 +532,15 @@ defmodule PhoenixKitManufacturing.MigrationsTest do
              """
              #{@source} calls execute/1 with an argument of its own.
 
-             Every statement this chain runs must come from up_statements/2 or
-             down_statements/2, because those are what the tests above compare
-             against their expected content. A statement executed directly is
-             invisible to all of them.
+             Every DDL statement this chain runs via execute/1 must come from
+             up_statements/2 or down_statements/2, because those are what the
+             tests above compare against their expected content. A statement
+             executed directly (rather than piped in via &execute/1) is
+             invisible to all of them. (up/1's own ensure_extension!/1 and
+             ensure_uuid_v7_function/1 calls are unaffected by this check —
+             they run their own idempotent setup outside of execute/1
+             entirely, and are exercised for real by
+             migrations_data_safety_test.exs instead.)
              """
 
       assert length(Regex.scan(~r/&execute\/1/, source)) == 2,
