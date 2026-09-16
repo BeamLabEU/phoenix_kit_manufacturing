@@ -104,15 +104,22 @@ repo_available =
     try do
       {:ok, _pid} = started
 
-      # Build the schema by running core's versioned migrations — as of
-      # core V144 this module ships no migrations of its own (see
-      # CLAUDE.md's "Database & migrations" section); `phoenix_kit_machines`
-      # and the rest of this module's runtime tables are created by the
-      # same call, core-owned. `ensure_current/2`'s DDL is `IF NOT
+      # Build the schema by running core's versioned migrations — core V144
+      # still creates `phoenix_kit_machines` and the rest of this module's
+      # runtime tables on every install (see CLAUDE.md's "Database &
+      # migrations" section). `ensure_current/2`'s DDL is `IF NOT
       # EXISTS`-idempotent, so a re-run against an already-migrated
       # database (a `mix test` rerun against a not-`test.reset`'d database)
       # no-ops cleanly.
       PhoenixKit.Migration.ensure_current(PhoenixKitManufacturing.Test.Repo, log: false)
+
+      # Stamp this module's own `pkm_schema:1` marker on top of core's
+      # tables, matching what a real host running `mix phoenix_kit.update`
+      # ends up with — `PhoenixKitManufacturing.Migrations.up_statements/2`
+      # is otherwise never exercised as a migration-context call before the
+      # suite's own migrations_data_safety_test.exs runs it for real.
+      PhoenixKitManufacturing.Migrations.up_statements()
+      |> Enum.each(&Ecto.Adapters.SQL.query!(PhoenixKitManufacturing.Test.Repo, &1, []))
 
       # `EntitiesRegistry.init/1`'s blueprint-entity provisioning
       # (`provision_blueprints/0`) needs a real `created_by_uuid` — a
