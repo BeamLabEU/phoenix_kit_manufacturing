@@ -40,6 +40,20 @@ defmodule PhoenixKitManufacturing.Schemas.Machine do
 
   @statuses ~w(active maintenance repair mothballed decommissioned)
 
+  # Single shape authority for `PhoenixKitManufacturing.Migrations` — the REAL
+  # `phoenix_kit_machines` `character varying` column widths, interpolated
+  # into that chain's DDL. `description`/`notes` are `TEXT` (no DB width),
+  # so `changeset/2` keeps their own 2000-char validation as-is.
+  @column_widths %{
+    name: 255,
+    code: 100,
+    manufacturer: 255,
+    serial_number: 255,
+    location_note: 500,
+    status: 20,
+    model: 255
+  }
+
   schema "phoenix_kit_machines" do
     field(:name, :string)
     # Short code / inventory number (e.g. "CNC-01").
@@ -112,16 +126,18 @@ defmodule PhoenixKitManufacturing.Schemas.Machine do
   @doc "Builds a changeset for a machine."
   @spec changeset(t(), map()) :: Ecto.Changeset.t()
   def changeset(machine, attrs) do
+    widths = column_widths()
+
     machine
     |> cast(attrs, @required_fields ++ @optional_fields)
     |> validate_required(@required_fields)
-    |> validate_length(:name, min: 1, max: 255)
-    |> validate_length(:code, max: 100)
-    |> validate_length(:manufacturer, max: 255)
-    |> validate_length(:model, max: 255)
-    |> validate_length(:serial_number, max: 255)
+    |> validate_length(:name, min: 1, max: widths.name)
+    |> validate_length(:code, max: widths.code)
+    |> validate_length(:manufacturer, max: widths.manufacturer)
+    |> validate_length(:model, max: widths.model)
+    |> validate_length(:serial_number, max: widths.serial_number)
     |> validate_length(:description, max: 2000)
-    |> validate_length(:location_note, max: 500)
+    |> validate_length(:location_note, max: widths.location_note)
     |> validate_length(:notes, max: 2000)
     |> validate_number(:to_interval_days, greater_than: 0)
     |> validate_number(:manufacture_year, greater_than: 1900, less_than: 2101)
@@ -132,6 +148,15 @@ defmodule PhoenixKitManufacturing.Schemas.Machine do
   @doc "The list of valid status values."
   @spec statuses() :: [String.t()]
   def statuses, do: @statuses
+
+  @doc """
+  The `character varying(N)` widths `PhoenixKitManufacturing.Migrations`
+  builds its `CREATE TABLE`/`ADD COLUMN` DDL from — the single source of
+  truth so the migration chain, this schema's own `changeset/2`, and core's
+  `ExpectedSchema` manifest can never independently disagree on a number.
+  """
+  @spec column_widths() :: %{atom() => pos_integer()}
+  def column_widths, do: @column_widths
 
   # Keeps `to_next_on` in sync with `to_last_on` + `to_interval_days` when
   # both are present and the caller isn't explicitly overriding

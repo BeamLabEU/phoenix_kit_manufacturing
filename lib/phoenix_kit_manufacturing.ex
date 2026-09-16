@@ -11,8 +11,11 @@ defmodule PhoenixKitManufacturing do
   integration are planned in later milestones (see
   `dev_docs/DEVELOPMENT_PLAN.md`).
 
-  Tables are created by PhoenixKit core (V144); the module ships no
-  migrations of its own.
+  PhoenixKit core (V144) still creates the `phoenix_kit_machines` /
+  `phoenix_kit_machine_type_assignments` / `phoenix_kit_machine_operations`
+  tables on every existing/fresh install; this module's own
+  `PhoenixKitManufacturing.Migrations` chain now owns their *future* shape
+  — see `migration_module/0` and that module's moduledoc.
   """
 
   use PhoenixKit.Module
@@ -71,6 +74,9 @@ defmodule PhoenixKitManufacturing do
 
   @impl PhoenixKit.Module
   def version, do: @version
+
+  @impl PhoenixKit.Module
+  def migration_module, do: PhoenixKitManufacturing.Migrations
 
   @impl PhoenixKit.Module
   def css_sources, do: [:phoenix_kit_manufacturing]

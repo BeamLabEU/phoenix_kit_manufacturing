@@ -62,8 +62,12 @@ before. Implemented via `pk_dep/3` in `mix.exs` — never hand-edit a
    compile time from each tab's `live_view:` field.
 4. Enable state is the `manufacturing_enabled` boolean setting
    (`PhoenixKit.Settings`); permissions come from `permission_metadata/0`.
-5. Tables are created by PhoenixKit core (V144); this module ships no
-   migrations of its own.
+5. Core (V144) still creates `phoenix_kit_machines`,
+   `phoenix_kit_machine_type_assignments`, and `phoenix_kit_machine_operations`
+   on every existing/fresh install; this module's own
+   `PhoenixKitManufacturing.Migrations` chain owns their *future* shape and
+   stamps a `pkm_schema:<N>` marker on `phoenix_kit_machines` — see
+   "Database & migrations" below.
 
 ### File layout
 
@@ -116,15 +120,34 @@ lib/phoenix_kit_manufacturing/
 
 ### Database & migrations
 
-This module ships **no production migrations** — all runtime database
-tables (`phoenix_kit_machines`, `phoenix_kit_machine_type_assignments`,
-`phoenix_kit_machine_operations`) are created by the parent
-[phoenix_kit](https://github.com/BeamLabEU/phoenix_kit) project, migration
-`V144`. This module only defines Ecto schemas that map to those tables.
+Core's `V144` (parent [phoenix_kit](https://github.com/BeamLabEU/phoenix_kit)
+project) still **creates** all 3 runtime tables (`phoenix_kit_machines`,
+`phoenix_kit_machine_type_assignments`, `phoenix_kit_machine_operations`) on
+every existing/fresh install. This module now owns their **future shape**
+through its own versioned chain, `PhoenixKitManufacturing.Migrations`
+(`migration_module/0`), which `mix phoenix_kit.update` discovers and drives
+the same way it drives core's own chain. V1 is a pure **adoption** (Phase
+0): it changes nothing except stamping a `pkm_schema:1` marker (a
+`COMMENT ON TABLE`) on the anchor table, `phoenix_kit_machines` — every
+`CREATE TABLE`/pkey/index/FK statement is `IF NOT EXISTS`/DO-guarded, so on
+every existing install it is a no-op against tables V144 already built.
+`down/1` never drops any of the 3 tables, for any target — see
+`PhoenixKitManufacturing.Migrations`' moduledoc for the full ownership
+writeup, including why `machine_type_uuid`/`operation_uuid` deliberately
+get no FK (soft references into the separate `phoenix_kit_entities`
+package).
+
+Phase 1 (a future shape change) needs a core-side `ExpectedSchema` manifest
+update first, or `mix phoenix_kit.repair` silently reverts it. Phase 2 (a
+future core baseline squash that drops these tables from core) is already
+covered: V1 alone can build the complete 22-column `phoenix_kit_machines`
+shape (plus the 2 join tables) from nothing, so a fresh install still gets
+a working schema even without V144.
+
 For the full column/index list and the upgrade-path note for hosts running
-the previously-published `0.2.0` (module-owned schema V1), see that
-migration's moduledoc (`lib/phoenix_kit/migrations/postgres/v144.ex` in
-core); for hosts with real rows still sitting in the pre-V144
+the previously-published `0.2.0` (module-owned schema V1), see V144's
+moduledoc (`lib/phoenix_kit/migrations/postgres/v144.ex` in core); for
+hosts with real rows still sitting in the pre-V144
 `phoenix_kit_machine_types`/`phoenix_kit_operations`/
 `phoenix_kit_defect_reasons` directory tables, see
 `dev_docs/LEGACY_DATA_MIGRATION.md` in this repo.
@@ -161,9 +184,10 @@ Two-level suite (see `test/test_helper.exs`):
   run — no DB needed.
 - **Integration** tests are tagged `:integration` (via `DataCase` /
   `LiveCase`) and auto-excluded when PostgreSQL is unavailable. The helper
-  applies core migrations via `PhoenixKit.Migration.ensure_current/2` (the
-  module ships no migrations of its own — see "Database & migrations"
-  above), then uses `Ecto.Adapters.SQL.Sandbox`.
+  applies core migrations via `PhoenixKit.Migration.ensure_current/2` (which
+  still creates all 3 machine tables — see "Database & migrations" above),
+  then applies `PhoenixKitManufacturing.Migrations.up_statements/2` directly
+  to stamp the `pkm_schema:1` marker, then uses `Ecto.Adapters.SQL.Sandbox`.
 
 Version-compliance: `test/phoenix_kit_manufacturing_test.exs` asserts
 `version/0` equals the current release. Keep it in sync (see below).

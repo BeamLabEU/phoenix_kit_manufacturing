@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- `PhoenixKitManufacturing.Migrations` — this module now owns and versions
+  the future shape of its 3 tables (`phoenix_kit_machines`,
+  `phoenix_kit_machine_type_assignments`, `phoenix_kit_machine_operations`)
+  via its own migration chain, the same pattern already shipped for
+  `phoenix_kit_posts`, `phoenix_kit_dashboards`, `phoenix_kit_warehouse` and
+  `phoenix_kit_customer_support`. `V1` adopts core's current `V144` shape
+  exactly and stamps a `pkm_schema:1` marker on `phoenix_kit_machines` — a
+  pure Phase-0 adoption with no shape change of any kind (unlike
+  `phoenix_kit_customer_support`'s V1, there is no analogous nullability
+  correction here: V144's source, core's `ExpectedSchema` manifest, and a
+  live database all already agree on all 3 tables' shape).
+  `phoenix_kit_machines` has never carried a `COMMENT` before — the
+  previously-published 0.2.0 module tracked its own version by structural
+  probing, not a table comment — so `pkm_schema:1` is the first one stamped
+  there. `PhoenixKitManufacturing.Schemas.Machine.column_widths/0` is now
+  the single shape authority for both the chain's DDL and `changeset/2`'s
+  own length validations.
+
 ## 0.4.4 - 2026-09-16
 
 ### Added
