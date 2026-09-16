@@ -1190,4 +1190,352 @@ defmodule PhoenixKitManufacturing.MediaReorganizerTest do
       assert Process.get(:hook_call_count, 0) == 0
     end
   end
+
+  describe "F1 on the name track (U1)" do
+    test "no pointer, legacy folder under a real parent, hook answers root → adopted as the current folder, back-fill only, hook_nil (no :relocated)" do
+      machine = new_machine(%{name: "Press 12"})
+      {:ok, target} = Storage.create_folder(%{name: "Machines"})
+
+      {:ok, legacy} =
+        Storage.create_folder(%{name: "machine-#{machine.uuid}", parent_uuid: target.uuid})
+
+      # `Hook.parent/2`'s default clause answers `nil` (root) because
+      # `:target_folder` is never set for this test.
+      Application.put_env(:phoenix_kit_manufacturing, :attachments_parent_folder, {Hook, :parent})
+
+      actions = MediaReorganizer.plan(nil, [])
+
+      refute Enum.any?(actions, &(&1.kind == :relocated and &1.folder.uuid == legacy.uuid))
+
+      hook_nil = Enum.find(actions, &(&1.kind == :hook_nil))
+      refute is_nil(hook_nil)
+      assert hook_nil.reason =~ "1 machine"
+      assert hook_nil.reason =~ machine.name
+
+      action = Enum.find(actions, &(&1.kind == :machine))
+      refute is_nil(action)
+      assert action.op == :move
+      assert action.folder.uuid == legacy.uuid
+      assert action.parent_uuid == target.uuid
+      assert action.name == nil
+      assert is_function(action.after_move, 0)
+
+      assert :ok = action.after_move.()
+      reloaded = Machines.get_machine(machine.uuid)
+      assert reloaded.data["files_folder_uuid"] == legacy.uuid
+
+      # never mistaken for an orphan — the machine is live and the folder
+      # is adopted, not abandoned.
+      refute Enum.any?(actions, &(&1.kind == :orphan and &1.folder.uuid == legacy.uuid))
+    end
+
+    test "legacy folder under a real parent AND a live copy at root, hook answers root → ambiguous, not silently adopted" do
+      machine = new_machine(%{name: "Press 12"})
+      {:ok, target} = Storage.create_folder(%{name: "Machines"})
+
+      {:ok, under_parent} =
+        Storage.create_folder(%{name: "machine-#{machine.uuid}", parent_uuid: target.uuid})
+
+      {:ok, at_root} = Storage.create_folder(%{name: "machine-#{machine.uuid}"})
+
+      Application.put_env(:phoenix_kit_manufacturing, :attachments_parent_folder, {Hook, :parent})
+
+      actions = MediaReorganizer.plan(nil, [])
+
+      refute Enum.any?(actions, &(&1.kind == :machine))
+      refute Enum.any?(actions, &(&1.kind == :hook_nil))
+
+      dup = Enum.find(actions, &(&1.kind == :duplicate and &1.label == machine.name))
+      refute is_nil(dup)
+      assert dup.reason =~ under_parent.uuid
+      assert dup.reason =~ at_root.uuid
+    end
+
+    test "two legacy copies under two different real parents, hook answers root → left unresolved, each reported :relocated" do
+      machine = new_machine(%{name: "Press 12"})
+      {:ok, parent_a} = Storage.create_folder(%{name: "Building A"})
+      {:ok, parent_b} = Storage.create_folder(%{name: "Building B"})
+
+      {:ok, copy_a} =
+        Storage.create_folder(%{name: "machine-#{machine.uuid}", parent_uuid: parent_a.uuid})
+
+      {:ok, copy_b} =
+        Storage.create_folder(%{name: "machine-#{machine.uuid}", parent_uuid: parent_b.uuid})
+
+      Application.put_env(:phoenix_kit_manufacturing, :attachments_parent_folder, {Hook, :parent})
+
+      actions = MediaReorganizer.plan(nil, [])
+
+      refute Enum.any?(actions, &(&1.kind == :machine))
+      refute Enum.any?(actions, &(&1.kind == :hook_nil))
+
+      relocated = Enum.filter(actions, &(&1.kind == :relocated))
+      assert length(relocated) == 2
+      assert Enum.any?(relocated, &(&1.folder.uuid == copy_a.uuid))
+      assert Enum.any?(relocated, &(&1.folder.uuid == copy_b.uuid))
+    end
+  end
+
+  describe "the ambiguous branch keeps every extra copy for :relocated (U9)" do
+    test "three live copies of the same legacy name (root, under target, and elsewhere) → the third is named too" do
+      machine = new_machine(%{name: "Press 12"})
+      {:ok, target} = Storage.create_folder(%{name: "Machines"})
+      {:ok, elsewhere} = Storage.create_folder(%{name: "Some other container"})
+
+      {:ok, at_root} = Storage.create_folder(%{name: "machine-#{machine.uuid}"})
+
+      {:ok, under_target} =
+        Storage.create_folder(%{name: "machine-#{machine.uuid}", parent_uuid: target.uuid})
+
+      {:ok, third} =
+        Storage.create_folder(%{name: "machine-#{machine.uuid}", parent_uuid: elsewhere.uuid})
+
+      Process.put(:target_folder, target.uuid)
+      Application.put_env(:phoenix_kit_manufacturing, :attachments_parent_folder, {Hook, :parent})
+
+      actions = MediaReorganizer.plan(nil, [])
+
+      dup = Enum.find(actions, &(&1.kind == :duplicate and &1.label == machine.name))
+      refute is_nil(dup)
+      assert dup.reason =~ at_root.uuid
+      assert dup.reason =~ under_target.uuid
+
+      relocated = Enum.find(actions, &(&1.kind == :relocated and &1.folder.uuid == third.uuid))
+      refute is_nil(relocated)
+      assert relocated.label == machine.name
+
+      # the third copy is never also reported as an orphan.
+      refute Enum.any?(actions, &(&1.kind == :orphan and &1.folder.uuid == third.uuid))
+    end
+  end
+
+  describe "relocated reason names the place (U3)" do
+    test "stray copy live at the media root" do
+      machine = new_machine(%{name: "Press 12"})
+      {:ok, target} = Storage.create_folder(%{name: "Machines"})
+      {:ok, current} = Storage.create_folder(%{name: "Renamed by hand", parent_uuid: target.uuid})
+      {:ok, twin} = Storage.create_folder(%{name: "machine-#{machine.uuid}"})
+
+      {:ok, _machine} =
+        Machines.update_machine(machine, %{data: %{"files_folder_uuid" => current.uuid}})
+
+      Process.put(:target_folder, target.uuid)
+      Application.put_env(:phoenix_kit_manufacturing, :attachments_parent_folder, {Hook, :parent})
+
+      actions = MediaReorganizer.plan(nil, [])
+
+      relocated = Enum.find(actions, &(&1.kind == :relocated and &1.folder.uuid == twin.uuid))
+      refute is_nil(relocated)
+      assert relocated.reason =~ "media root"
+    end
+
+    test "stray copy already live under the target parent (twin) — landing collision named" do
+      machine = new_machine(%{name: "Press 12"})
+      {:ok, target} = Storage.create_folder(%{name: "Machines"})
+      {:ok, current} = Storage.create_folder(%{name: "Renamed by hand", parent_uuid: target.uuid})
+
+      {:ok, twin} =
+        Storage.create_folder(%{name: "machine-#{machine.uuid}", parent_uuid: target.uuid})
+
+      {:ok, _machine} =
+        Machines.update_machine(machine, %{data: %{"files_folder_uuid" => current.uuid}})
+
+      Process.put(:target_folder, target.uuid)
+      Application.put_env(:phoenix_kit_manufacturing, :attachments_parent_folder, {Hook, :parent})
+
+      actions = MediaReorganizer.plan(nil, [])
+
+      relocated = Enum.find(actions, &(&1.kind == :relocated and &1.folder.uuid == twin.uuid))
+      refute is_nil(relocated)
+      assert relocated.reason =~ "target parent"
+      assert relocated.reason =~ "twin"
+    end
+
+    test "stray copy live under a genuine third-party parent — named" do
+      machine = new_machine(%{name: "Press 12"})
+      {:ok, target} = Storage.create_folder(%{name: "Machines"})
+      {:ok, other} = Storage.create_folder(%{name: "Warehouse annex"})
+      {:ok, current} = Storage.create_folder(%{name: "Renamed by hand", parent_uuid: target.uuid})
+
+      {:ok, twin} =
+        Storage.create_folder(%{name: "machine-#{machine.uuid}", parent_uuid: other.uuid})
+
+      {:ok, _machine} =
+        Machines.update_machine(machine, %{data: %{"files_folder_uuid" => current.uuid}})
+
+      Process.put(:target_folder, target.uuid)
+      Application.put_env(:phoenix_kit_manufacturing, :attachments_parent_folder, {Hook, :parent})
+
+      actions = MediaReorganizer.plan(nil, [])
+
+      relocated = Enum.find(actions, &(&1.kind == :relocated and &1.folder.uuid == twin.uuid))
+      refute is_nil(relocated)
+      assert relocated.reason =~ "Warehouse annex"
+    end
+  end
+
+  describe "invalid hook config is a hook_error, never silent no-hook (V3/U7)" do
+    test "a non-tuple garbage config → hook_error 'not callable', no moves" do
+      machine = new_machine(%{name: "Press 12"})
+      {:ok, _folder} = Storage.create_folder(%{name: "machine-#{machine.uuid}"})
+
+      Application.put_env(:phoenix_kit_manufacturing, :attachments_parent_folder, "garbage")
+
+      actions = MediaReorganizer.plan(nil, [])
+
+      refute Enum.any?(actions, &(&1.kind == :machine and &1.op == :move))
+      error = Enum.find(actions, &(&1.kind == :hook_error))
+      refute is_nil(error)
+      assert error.reason =~ "not callable"
+    end
+
+    test "a 3-tuple config → hook_error 'not callable', no moves" do
+      machine = new_machine(%{name: "Press 12"})
+      {:ok, _folder} = Storage.create_folder(%{name: "machine-#{machine.uuid}"})
+
+      Application.put_env(
+        :phoenix_kit_manufacturing,
+        :attachments_parent_folder,
+        {Hook, :parent, :extra}
+      )
+
+      actions = MediaReorganizer.plan(nil, [])
+
+      refute Enum.any?(actions, &(&1.kind == :machine and &1.op == :move))
+      error = Enum.find(actions, &(&1.kind == :hook_error))
+      refute is_nil(error)
+      assert error.reason =~ "not callable"
+    end
+
+    test "no key configured at all → no report, plan proceeds (report-only for pending/orphans)" do
+      machine = new_machine(%{name: "Press 12"})
+      {:ok, _folder} = Storage.create_folder(%{name: "machine-#{machine.uuid}"})
+
+      actions = MediaReorganizer.plan(nil, [])
+
+      refute Enum.any?(actions, &(&1.kind == :hook_error))
+    end
+  end
+
+  describe "hook_error / hook_nil reports name the affected machines (U8)" do
+    test "an uncallable hook config names the affected machine" do
+      machine = new_machine(%{name: "Press 12"})
+      {:ok, _folder} = Storage.create_folder(%{name: "machine-#{machine.uuid}"})
+
+      Application.put_env(:phoenix_kit_manufacturing, :attachments_parent_folder, "garbage")
+
+      actions = MediaReorganizer.plan(nil, [])
+
+      error = Enum.find(actions, &(&1.kind == :hook_error))
+      refute is_nil(error)
+      assert error.reason =~ machine.name
+    end
+
+    test "a runtime hook failure names every skipped machine" do
+      m1 = new_machine(%{name: "First"})
+      m2 = new_machine(%{name: "Second"})
+      {:ok, _f1} = Storage.create_folder(%{name: "machine-#{m1.uuid}"})
+      {:ok, _f2} = Storage.create_folder(%{name: "machine-#{m2.uuid}"})
+
+      Application.put_env(
+        :phoenix_kit_manufacturing,
+        :attachments_parent_folder,
+        {RaisingHook, :parent}
+      )
+
+      actions = MediaReorganizer.plan(nil, [])
+
+      error = Enum.find(actions, &(&1.kind == :hook_error))
+      refute is_nil(error)
+      assert error.reason =~ m1.name
+      assert error.reason =~ m2.name
+    end
+
+    test "more than 10 skipped machines → the reason lists 10 and says how many more" do
+      machines =
+        for i <- 1..12 do
+          # zero-padded so no name is a text substring of another (e.g.
+          # "Machine 01" vs "Machine 10").
+          m = new_machine(%{name: "Machine #{String.pad_leading(to_string(i), 2, "0")}"})
+          {:ok, _folder} = Storage.create_folder(%{name: "machine-#{m.uuid}"})
+          m
+        end
+
+      Application.put_env(
+        :phoenix_kit_manufacturing,
+        :attachments_parent_folder,
+        {RaisingHook, :parent}
+      )
+
+      actions = MediaReorganizer.plan(nil, [])
+
+      error = Enum.find(actions, &(&1.kind == :hook_error))
+      refute is_nil(error)
+      assert error.reason =~ "and 2 more"
+
+      # order between same-millisecond UUIDv7 rows isn't guaranteed to match
+      # creation order, so only the count of named machines is asserted,
+      # not which specific 10 of the 12 are named.
+      named_count = Enum.count(machines, &(error.reason =~ &1.name))
+      assert named_count == 10
+    end
+
+    test "a hook_nil report names the affected machine" do
+      machine = new_machine(%{name: "Press 12"})
+      {:ok, target} = Storage.create_folder(%{name: "Machines"})
+      {:ok, folder} = Storage.create_folder(%{name: "Real folder", parent_uuid: target.uuid})
+
+      {:ok, _machine} =
+        Machines.update_machine(machine, %{data: %{"files_folder_uuid" => folder.uuid}})
+
+      Application.put_env(:phoenix_kit_manufacturing, :attachments_parent_folder, {Hook, :parent})
+
+      actions = MediaReorganizer.plan(nil, [])
+
+      hook_nil = Enum.find(actions, &(&1.kind == :hook_nil))
+      refute is_nil(hook_nil)
+      assert hook_nil.reason =~ machine.name
+    end
+  end
+
+  describe "hook log lines carry {mod, fun} and the kind (U6)" do
+    test "a raising hook logs the configured module/function and the machine kind" do
+      machine = new_machine(%{name: "Press 12"})
+      {:ok, _folder} = Storage.create_folder(%{name: "machine-#{machine.uuid}"})
+
+      Application.put_env(
+        :phoenix_kit_manufacturing,
+        :attachments_parent_folder,
+        {RaisingHook, :parent}
+      )
+
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          MediaReorganizer.plan(nil, [])
+        end)
+
+      assert log =~ "RaisingHook"
+      assert log =~ "parent"
+      assert log =~ "machine"
+    end
+
+    test "a hook returning a bad-but-non-raising value is logged too" do
+      machine = new_machine(%{name: "Press 12"})
+      {:ok, _folder} = Storage.create_folder(%{name: "machine-#{machine.uuid}"})
+
+      Application.put_env(
+        :phoenix_kit_manufacturing,
+        :attachments_parent_folder,
+        {ErrorHook, :parent}
+      )
+
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          MediaReorganizer.plan(nil, [])
+        end)
+
+      assert log =~ "ErrorHook"
+      assert log =~ "unexpected"
+    end
+  end
 end

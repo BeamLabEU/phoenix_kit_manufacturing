@@ -100,12 +100,18 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
      `Attachments.find_folder_by_name/2`, which checks parent first, root
      second). A legacy name live in **both** places is unresolvable —
      reported as one `kind: :duplicate` action naming both folders, nothing
-     moved (X11/D2). A legacy name live somewhere else entirely (neither
-     root nor the resolved parent) resolves to no current folder at all —
-     every such live match is reported `kind: :relocated`, never silently
-     dropped (this also covers the "no pointer, no match at root or under
-     the parent" case that earlier only produced a report when a pointer
-     was present).
+     moved (X11/D2) — any THIRD live copy of the same legacy name is still
+     reported `kind: :relocated` on its own, never silently swallowed by the
+     duplicate report (U9). A legacy name live somewhere else entirely
+     (neither root nor the resolved parent) resolves to no current folder at
+     all — every such live match is reported `kind: :relocated`, never
+     silently dropped (this also covers the "no pointer, no match at root or
+     under the parent" case that earlier only produced a report when a
+     pointer was present) — **except** when the hook answered root (F1/U1):
+     a legacy folder already live under some genuine (non-root) parent is
+     then adopted AS the machine's current folder instead (see point 5),
+     since F1 forbids treating a nil hook answer as grounds to relocate
+     anything.
   4. Two (or more) machines whose current folder resolves to the very same
      live folder are likewise unresolvable — one `kind: :duplicate` report
      per shared folder, no move for any of them (X5). Two (or more)
@@ -118,7 +124,16 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
      folder out of a parent it currently lives under (F1): the move is
      suppressed (parent and name both kept exactly as-is — only a pointer
      back-fill, if any, still applies), and the machine is counted into
-     one `kind: :hook_nil` report instead of a false move to root.
+     one `kind: :hook_nil` report instead of a false move to root. This
+     applies equally on the name track (U1): when the hook answers root but
+     a legacy folder is already live under a real parent nobody's pointer
+     names, that folder is treated as the machine's current one (parent and
+     name kept, only the pointer back-fill runs) rather than reported
+     `:relocated` — a live copy at root *and* one under some real parent at
+     the same time is still ambiguous (point 3/4), and two or more live
+     copies under different real parents (with none at root) are left
+     unresolved, each reported `:relocated`, since nothing here can tell
+     which one the hook actually meant.
   6. A live pointer's folder can leave SEPARATE legacy-named folder(s)
      (`machine-<uuid>`) live somewhere else entirely — neither the current
      folder (the pointer already names it) nor an orphan (the machine is
@@ -181,8 +196,15 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
 
           {actions, claims, parent, true}
 
-        {:not_callable, mod, fun} ->
-          {[not_callable_hook_action(mod, fun)], claimed_folder_uuids([], [], [], []), nil, false}
+        {:not_callable, config} ->
+          # U8: candidate detection touches no hook (it is pure local
+          # lookups — F4/R8's "no hook call without a candidate" is about
+          # the HOST's hook, never called here), so the report can still
+          # name which machines are affected instead of a bare count.
+          {candidates, _by_pointer, _by_name} = detect_candidates(machines)
+
+          {[not_callable_hook_action(config, candidates)], claimed_folder_uuids([], [], [], []),
+           nil, false}
 
         :none ->
           {[], claimed_folder_uuids([], [], [], []), nil, false}
@@ -202,28 +224,53 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
   # all" — it must not silently degrade to report-only (E1) without
   # telling the owner why nothing moved. Returns the resolved `{mod, fun}`
   # alongside `:ok` so the caller never has to read the same env var again
-  # to find out what to actually call (N8).
+  # to find out what to actually call (N8). V3/U7: ANY configured value
+  # that is not a `{mod, fun}` naming a callable function — a typo'd tuple
+  # or outright garbage (a string, a 3-tuple, …) — is the very same
+  # misconfiguration and gets the very same `:hook_error`; only a genuinely
+  # unset key (`nil`, the default) means "no hook".
   defp hook_status do
     case Application.get_env(:phoenix_kit_manufacturing, :attachments_parent_folder) do
-      {mod, fun} when is_atom(mod) and is_atom(fun) ->
-        if callable?(mod, fun), do: {:ok, mod, fun}, else: {:not_callable, mod, fun}
-
-      _ ->
+      nil ->
         :none
+
+      {mod, fun} = config when is_atom(mod) and is_atom(fun) ->
+        if callable?(mod, fun), do: {:ok, mod, fun}, else: {:not_callable, config}
+
+      other ->
+        {:not_callable, other}
     end
   end
 
   defp callable?(mod, fun), do: Code.ensure_loaded?(mod) and function_exported?(mod, fun, 2)
 
-  defp not_callable_hook_action(mod, fun) do
+  # U8: names up to 10 affected machines instead of a bare count, so the
+  # owner knows where to look.
+  defp not_callable_hook_action(config, candidates) do
+    labels = Enum.map(candidates, & &1.record.name)
+
     %{
       source: "manufacturing",
       kind: :hook_error,
       op: :report,
       label: "attachments parent hook",
       counts: nil,
-      reason: "configured parent hook {#{inspect(mod)}, #{inspect(fun)}} is not callable"
+      reason:
+        "configured parent hook #{inspect(config)} is not callable or not a valid " <>
+          "{module, function} config" <> label_suffix(labels)
     }
+  end
+
+  # U8: renders up to 10 record labels, then "… and N more" — used by every
+  # `:hook_error`/`:hook_nil` report.
+  defp label_suffix([]), do: ""
+
+  defp label_suffix(labels) do
+    {shown, rest} = Enum.split(labels, 10)
+    more = length(rest)
+    tail = if more > 0, do: " … and #{more} more", else: ""
+
+    " — " <> Enum.join(shown, ", ") <> tail
   end
 
   # Candidate detection needs no hook call: a live pointer (uuid lookup) or
@@ -234,6 +281,22 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
   # detection — see `plan/2`, which falls back to a root-only orphan scan
   # when there is nothing for the hook to place).
   defp build_resource_plan(machines, actor_uuid, pointer_claims, mod, fun) do
+    case detect_candidates(machines) do
+      {[], _by_pointer, _by_name} ->
+        # F4/R8: no hook call without a candidate — orphan detection falls
+        # back to root scope only (see `orphan_actions/2` with `nil`).
+        {[], claimed_folder_uuids([], [], [], []), nil}
+
+      {candidates, by_pointer, by_name} ->
+        resolve_and_build(candidates, by_pointer, by_name, mod, fun, actor_uuid, pointer_claims)
+    end
+  end
+
+  # Pure local lookups — never calls the host's hook (F4/R8 is about
+  # avoiding THAT call, not this one), so it is safe to run even when the
+  # configured hook turns out to be uncallable, just to name the affected
+  # machines in that report (U8).
+  defp detect_candidates(machines) do
     prelim =
       Enum.map(machines, fn {machine, pointer} ->
         {:ok, legacy_name} = Attachments.folder_name_for(machine)
@@ -254,15 +317,7 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
           Map.has_key?(by_name, p.legacy_name)
       end)
 
-    case candidates do
-      [] ->
-        # F4/R8: no hook call without a candidate — orphan detection falls
-        # back to root scope only (see `orphan_actions/2` with `nil`).
-        {[], claimed_folder_uuids([], [], [], []), nil}
-
-      candidates ->
-        resolve_and_build(candidates, by_pointer, by_name, mod, fun, actor_uuid, pointer_claims)
-    end
+    {candidates, by_pointer, by_name}
   end
 
   # R2: resolves the single shared parent via the host's exact hook,
@@ -277,7 +332,7 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
           |> Enum.map(&resolve_entry(&1, parent_uuid, by_pointer, by_name))
           |> Enum.map(&apply_nil_root_guard/1)
 
-        hook_nil_count = Enum.count(entries, & &1.hook_nil)
+        hook_nil_entries = Enum.filter(entries, & &1.hook_nil)
 
         {ambiguous, normal} = Enum.split_with(entries, & &1.ambiguous)
         {with_folder, without_folder} = Enum.split_with(normal, & &1.folder)
@@ -314,10 +369,13 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
         # adopted current folder (if any) gets its own `:relocated` report
         # — except a copy that is itself another live machine's claimed
         # (adopted or pointer) folder, which is never also `:relocated`.
+        # U9: `ambiguous` entries are included too — the two folders named
+        # in their `:duplicate` report are excluded via `claimed`, but any
+        # THIRD live copy is still a genuine stray and gets named here.
         stray_actions =
-          Enum.flat_map(with_folder ++ without_folder, &stray_relocated_actions(&1, all_claimed))
+          stray_relocated_actions(with_folder ++ without_folder ++ ambiguous, all_claimed)
 
-        hook_nil_actions = hook_nil_action(hook_nil_count)
+        hook_nil_actions = hook_nil_action(hook_nil_entries)
 
         all_actions =
           move_actions ++
@@ -327,25 +385,32 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
         {finalize_counts(all_actions), claimed, parent_uuid}
 
       :error ->
-        {hook_error_action(length(candidates)), claimed_folder_uuids([], [], [], []), :unknown}
+        {hook_error_action(candidates), claimed_folder_uuids([], [], [], []), :unknown}
     end
   end
 
   defp resolve_parent(mod, fun, actor_uuid) do
-    guarded_hook_call(fn -> apply(mod, fun, ["machine", actor_uuid]) end)
+    guarded_hook_call(mod, fun, fn -> apply(mod, fun, ["machine", actor_uuid]) end)
   end
 
   # T1: every answer is cast through `Ecto.UUID.cast/1` (which also
   # normalises case) — `{:ok, ""}` / `{:ok, "not-a-uuid"}` are hook
   # FAILURES (`:error`), never sent into a later `in ^uuids` query (which
   # would raise a CastError and take down the whole plan). F2: an explicit
-  # `{:ok, nil}` or bare `nil` means root.
-  defp guarded_hook_call(fun) do
-    case fun.() do
+  # `{:ok, nil}` or bare `nil` means root. U6: every log line carries the
+  # `{mod, fun}` that was called and the kind ("machine" — the only kind
+  # this module ever asks the hook about) — including a bad-but-non-raising
+  # return value, which used to fail silently.
+  defp guarded_hook_call(mod, fun, thunk) do
+    case thunk.() do
       {:ok, uuid} when is_binary(uuid) ->
         case valid_uuid(uuid) do
-          nil -> :error
-          cast -> {:ok, cast}
+          nil ->
+            log_bad_hook_return(mod, fun, {:ok, uuid})
+            :error
+
+          cast ->
+            {:ok, cast}
         end
 
       {:ok, nil} ->
@@ -354,26 +419,42 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
       nil ->
         {:ok, nil}
 
-      _other ->
+      other ->
+        log_bad_hook_return(mod, fun, other)
         :error
     end
   rescue
     error ->
       Logger.warning(
-        "Attachments parent hook raised: " <> Exception.format(:error, error, __STACKTRACE__)
+        "Attachments parent hook #{inspect(mod)}.#{fun} (machine) raised: " <>
+          Exception.format(:error, error, __STACKTRACE__)
       )
 
       :error
   catch
     kind, reason ->
-      Logger.warning("Attachments parent hook #{kind}: #{inspect(reason)}")
+      Logger.warning(
+        "Attachments parent hook #{inspect(mod)}.#{fun} (machine) #{kind}: #{inspect(reason)}"
+      )
+
       :error
+  end
+
+  defp log_bad_hook_return(mod, fun, value) do
+    Logger.warning(
+      "Attachments parent hook #{inspect(mod)}.#{fun} (machine) returned an unexpected " <>
+        "value: #{inspect(value)}"
+    )
   end
 
   # T4: always reported when the hook was actually called and failed —
   # even when the failure's only effect is that orphan detection got
-  # skipped (F4/R8 guarantees `candidates` is never empty here).
-  defp hook_error_action(count) do
+  # skipped (F4/R8 guarantees `candidates` is never empty here). U8: names
+  # up to 10 of the skipped machines.
+  defp hook_error_action(candidates) do
+    count = length(candidates)
+    labels = Enum.map(candidates, & &1.record.name)
+
     [
       %{
         source: "manufacturing",
@@ -383,16 +464,19 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
         counts: nil,
         reason:
           "#{count} machine(s) skipped: the configured parent hook raised, exited, or " <>
-            "returned neither {:ok, uuid} nor nil"
+            "returned neither {:ok, uuid} nor nil" <> label_suffix(labels)
       }
     ]
   end
 
-  # F1: a plain count, not one report per machine — mirrors
-  # `hook_error_action/1`.
-  defp hook_nil_action(0), do: []
+  # F1: one report, not one per machine — mirrors `hook_error_action/1`.
+  # U8: names up to 10 of the affected machines.
+  defp hook_nil_action([]), do: []
 
-  defp hook_nil_action(count) do
+  defp hook_nil_action(entries) do
+    count = length(entries)
+    labels = Enum.map(entries, & &1.record.name)
+
     [
       %{
         source: "manufacturing",
@@ -402,7 +486,7 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
         counts: nil,
         reason:
           "#{count} machine(s): the parent hook answered root for a folder living under a " <>
-            "parent — left in place"
+            "parent — left in place" <> label_suffix(labels)
       }
     ]
   end
@@ -436,19 +520,43 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
       under_parent = parent_uuid && Enum.find(matches, &(&1.parent_uuid == parent_uuid))
       at_root = Enum.find(matches, &is_nil(&1.parent_uuid))
 
-      resolve_name_entry(p, parent_uuid, matches, under_parent, at_root)
+      # U1/F1: the hook answered root (`parent_uuid` is `nil`), but a
+      # legacy folder is already live under a genuine (non-root) parent
+      # that nobody's hook call named — F1 forbids treating a nil answer
+      # as grounds to move (or report as relocated) a folder that already
+      # lives under a real parent. Adopted only when it is the SINGLE such
+      # match; two or more real-parent matches (or one plus an at-root
+      # match) are left ambiguous/relocated exactly as before — nothing
+      # here can tell which one the hook actually meant.
+      elsewhere_real_parent =
+        if is_nil(parent_uuid), do: single_real_parent_match(matches, at_root)
+
+      resolve_name_entry(p, parent_uuid, matches, under_parent || elsewhere_real_parent, at_root)
     end
   end
 
-  defp resolve_name_entry(p, parent_uuid, _matches, under_parent, at_root)
+  defp single_real_parent_match(matches, at_root) do
+    case Enum.reject(matches, &(&1 == at_root or is_nil(&1.parent_uuid))) do
+      [only] -> only
+      _ -> nil
+    end
+  end
+
+  defp resolve_name_entry(p, parent_uuid, matches, under_parent, at_root)
        when not is_nil(under_parent) and not is_nil(at_root) do
+    # U9: the ambiguous pair (`under_parent`/`at_root`) is reported as one
+    # `:duplicate` action, but any THIRD live copy of the same legacy name
+    # is still a genuine stray — kept here so it is reported `:relocated`
+    # on its own instead of being silently zeroed out.
+    stray = Enum.reject(matches, &(&1 == under_parent or &1 == at_root))
+
     Map.merge(p, %{
       folder: nil,
       parent_uuid: parent_uuid,
       name: p.legacy_name,
       via: nil,
       ambiguous: {under_parent, at_root},
-      stray_legacy: []
+      stray_legacy: stray
     })
   end
 
@@ -469,7 +577,10 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
   # F1: an explicit `nil`/`{:ok, nil}` answer from the parent hook never
   # pulls a folder that currently lives under a real parent out to root —
   # only a pointer back-fill (if any) is kept; the parent and name stay
-  # exactly as they are.
+  # exactly as they are. U1: this already covers the name track too —
+  # `resolve_entry/4` only ever sets `entry.folder` to a folder under a
+  # real parent there (via `elsewhere_real_parent`) when the hook itself
+  # answered root, so the same guard clause applies unchanged.
   defp apply_nil_root_guard(%{folder: %Folder{parent_uuid: parent_uuid}} = entry)
        when not is_nil(parent_uuid) and is_nil(entry.parent_uuid) do
     entry
@@ -484,12 +595,55 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
   # current folder — one `:relocated` report per copy, all of them, never
   # just the first. A copy that is itself claimed by another live machine
   # (its own resolved current folder, or a pointer claim) is excluded — a
-  # claimed folder is never also reported `:relocated`.
-  defp stray_relocated_actions(entry, claimed) do
-    entry.stray_legacy
-    |> Enum.reject(&MapSet.member?(claimed, &1.uuid))
-    |> Enum.map(&build_relocated_action(%{record: entry.record, relocated: &1}))
+  # claimed folder is never also reported `:relocated`. U3: batched over
+  # the whole plan so naming a stray copy's actual (third-party) parent in
+  # the reason never costs a query per copy.
+  defp stray_relocated_actions(entries, claimed) do
+    pairs =
+      Enum.flat_map(entries, fn entry ->
+        entry.stray_legacy
+        |> Enum.reject(&MapSet.member?(claimed, &1.uuid))
+        |> Enum.map(&{entry, &1})
+      end)
+
+    parent_names = load_stray_parent_names(pairs)
+
+    Enum.map(pairs, fn {entry, folder} ->
+      build_relocated_action(%{
+        record: entry.record,
+        relocated: folder,
+        target_parent_uuid: entry.parent_uuid,
+        parent_names: parent_names
+      })
+    end)
   end
+
+  # Only parents that are neither root nor the machine's own resolved
+  # target need a name — those two cases have their own fixed wording.
+  defp load_stray_parent_names(pairs) do
+    uuids =
+      pairs
+      |> Enum.map(fn {entry, folder} -> other_parent_uuid(folder, entry.parent_uuid) end)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    case uuids do
+      [] ->
+        %{}
+
+      uuids ->
+        Folder
+        |> where([f], f.uuid in ^uuids)
+        |> order_by([f], asc: f.uuid)
+        |> select([f], {f.uuid, f.name})
+        |> repo().all()
+        |> Map.new()
+    end
+  end
+
+  defp other_parent_uuid(%Folder{parent_uuid: nil}, _target_parent_uuid), do: nil
+  defp other_parent_uuid(%Folder{parent_uuid: parent_uuid}, parent_uuid), do: nil
+  defp other_parent_uuid(%Folder{parent_uuid: parent_uuid}, _target_parent_uuid), do: parent_uuid
 
   # Splits entries whose current folder is claimed by exactly one machine
   # (`unique`) from those where two or more machines resolve to the very
@@ -640,7 +794,7 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
     }
   end
 
-  defp build_relocated_action(%{record: machine, relocated: folder}) do
+  defp build_relocated_action(%{record: machine, relocated: folder} = ctx) do
     %{
       source: "manufacturing",
       kind: :relocated,
@@ -649,8 +803,32 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
       folder: folder,
       counts: nil,
       reason:
-        "legacy folder #{folder.uuid} is live under a different parent — left alone, never adopted"
+        relocated_reason(
+          folder,
+          Map.get(ctx, :target_parent_uuid),
+          Map.get(ctx, :parent_names, %{})
+        )
     }
+  end
+
+  # U3: the reason names the copy's actual place — at the media root,
+  # already under the very parent the machine is headed to (where an
+  # eventual move will land next to it as a `"name (N)"` suffixed twin),
+  # or by name under a genuine third-party parent — instead of a blanket
+  # "under a different parent" that reads wrong for two of the three cases.
+  defp relocated_reason(%Folder{parent_uuid: nil} = folder, _target_parent_uuid, _names) do
+    "legacy folder #{folder.uuid} is live at the media root — left alone, never adopted"
+  end
+
+  defp relocated_reason(%Folder{parent_uuid: parent_uuid} = folder, parent_uuid, _names) do
+    "legacy folder #{folder.uuid} is already live as a twin under the target parent " <>
+      "— left alone; an eventual move there will collide, landing as \"name (N)\""
+  end
+
+  defp relocated_reason(%Folder{parent_uuid: parent_uuid} = folder, _target_parent_uuid, names) do
+    parent_label = Map.get(names, parent_uuid, parent_uuid)
+
+    "legacy folder #{folder.uuid} is live under #{parent_label} — left alone, never adopted"
   end
 
   # R5/X3: a pointer that is not a well-formed UUID is treated as absent,
