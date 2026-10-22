@@ -581,7 +581,7 @@ msgstr "Файлы станка"
 msgid "Machine Comments"
 msgstr "Комментарии к станку"
 
-#: lib/phoenix_kit_manufacturing.ex:275
+#: lib/phoenix_kit_manufacturing.ex:301
 #, elixir-format
 msgid "Machine Type Template"
 msgstr "Шаблон типа станка"

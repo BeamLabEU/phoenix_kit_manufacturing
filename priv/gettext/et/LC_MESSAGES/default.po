@@ -581,7 +581,7 @@ msgstr "Masina failid"
 msgid "Machine Comments"
 msgstr "Masina kommentaarid"
 
-#: lib/phoenix_kit_manufacturing.ex:275
+#: lib/phoenix_kit_manufacturing.ex:301
 #, elixir-format
 msgid "Machine Type Template"
 msgstr "Masinatüübi mall"

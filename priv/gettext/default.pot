@@ -581,6 +581,11 @@ msgstr ""
 msgid "Machine Comments"
 msgstr ""
 
+#: lib/phoenix_kit_manufacturing.ex:301
+#, elixir-format
+msgid "Machine Type Template"
+msgstr ""
+
 #: lib/phoenix_kit_manufacturing/web/components/files_card.ex:144
 #, elixir-autogen, elixir-format
 msgid " or drag & drop"
