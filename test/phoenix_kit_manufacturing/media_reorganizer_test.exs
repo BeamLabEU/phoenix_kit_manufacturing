@@ -1165,7 +1165,7 @@ defmodule PhoenixKitManufacturing.MediaReorganizerTest do
     # F4/R8: R8 wins over X13 — no hook call without a move candidate, so
     # an orphan under a parent no candidate resolved is never found (only
     # at root, see the test above); calling the hook just to widen an
-    # orphan scan is no longer done (an Andi `Containers.ensure`-style
+    # orphan scan is no longer done (a host `Containers.ensure`-style
     # hook would create a container and write Settings on a dry-run plan).
     test "orphaned legacy folder under a non-root parent, no live move candidate → NOT reported (hook never called, F4/R8)" do
       machine = new_machine()

@@ -3,7 +3,7 @@ defmodule PhoenixKitManufacturing.EntitiesRegistryTest do
   # rows), excluded when the DB is unavailable (see test_helper.exs). The
   # registry is a GenServer started per-test via `start_supervised!/1` and
   # queries the DB from its own process, so the sandbox must run in shared
-  # mode (`async: false`) — same pattern as `Andi.Orders.StatusRegistryTest`.
+  # mode (`async: false`) — same pattern as `Host.Orders.StatusRegistryTest`.
   use PhoenixKitManufacturing.DataCase, async: false
 
   alias PhoenixKitEntities, as: Entities
