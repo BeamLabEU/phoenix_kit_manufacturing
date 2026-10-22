@@ -376,11 +376,11 @@ mix gettext.merge priv/gettext
 
 ---
 
-## Задача хоста (для оркестратора — НЕ выполняется агентами волны E в `/www/app`)
+## Задача хоста (для оркестратора — НЕ выполняется агентами волны E в `<host-app>`)
 
-Реализуется в `/www/app` после того, как `phoenix_kit_manufacturing` с волной E закоммичен (и, если публикуется на Hex — после публикации; при локальной разработке через `PHOENIX_KIT_MANUFACTURING_PATH`, если такой env поддержан в mix.exs хоста, или прямой path-dep, как сейчас).
+Реализуется в `<host-app>` после того, как `phoenix_kit_manufacturing` с волной E закоммичен (и, если публикуется на Hex — после публикации; при локальной разработке через `PHOENIX_KIT_MANUFACTURING_PATH`, если такой env поддержан в mix.exs хоста, или прямой path-dep, как сейчас).
 
-1. **`reverse_references` конфиг** — в `/www/app/config/config.exs` добавить:
+1. **`reverse_references` конфиг** — в `<host-app>/config/config.exs` добавить:
    ```elixir
    config :phoenix_kit_entities,
      reverse_references: [

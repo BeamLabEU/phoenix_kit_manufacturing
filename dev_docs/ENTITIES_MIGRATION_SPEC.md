@@ -17,7 +17,7 @@
 
 ## 2. Провижининг и перенос данных (миграция V5)
 
-Рецепт 1:1 из `/www/app/priv/repo/migrations/20260502155927_seed_order_status_entities.exs`:
+Рецепт 1:1 из `<host-app>/priv/repo/migrations/20260502155927_seed_order_status_entities.exs`:
 1. Идемпотентно ensure трёх Entity: `get_entity_by_name` → `create_entity` (+`set_entity_translation` en/et/ru для display_name); `created_by_uuid` передавать явно.
 2. Перенос записей: для каждой строки трёх старых таблиц → `EntityData.create` (идемпотентность — existence-check по `data->>'legacy_uuid'`, куда кладём старый uuid); **конвертация мультиязычности**: наш формат `data[locale][field]` → формат entities `%{"_primary_language" => ..., locale => %{"_title" => ...}}`.
 3. Перешивка ссылок: `machine_type_assignments.machine_type_uuid` и `machine_operations.operation_uuid` update по маппингу старый→новый uuid; DROP старых FK-констрейнтов.
