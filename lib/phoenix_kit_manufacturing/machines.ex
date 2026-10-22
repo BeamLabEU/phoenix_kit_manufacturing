@@ -321,7 +321,7 @@ defmodule PhoenixKitManufacturing.Machines do
 
   Intended as the host app's `reverse_references` `count_fn` for the
   `machine_type` entity (an advisory "used by N machines" hint on the
-  entities trash UI) — see `dev_docs/IMPLEMENTATION_PLAN_E.md`'s ANDI
+  entities trash UI) — see `dev_docs/IMPLEMENTATION_PLAN_E.md`'s host
   follow-up task. Not called anywhere in this module itself.
   """
   @spec count_machines_with_type(String.t()) :: non_neg_integer()

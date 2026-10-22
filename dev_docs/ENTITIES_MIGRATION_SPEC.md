@@ -1,6 +1,6 @@
 # Спецификация: перенос простых справочников производства в phoenix_kit_entities
 
-Дата: 2026-07-11. Решение владельца: Типы станков, Операции, Причины брака — из схем модуля в entities; все будущие простые справочники — сразу entities. Основание-прецедент: andi уже так живёт (Andi.Orders.StatusRegistry / FinancialStatusRegistry / SuborderTypes + seed-миграции 20260502*). Исследование API — 2026-07-11 (file:line в отчёте).
+Дата: 2026-07-11. Решение владельца: Типы станков, Операции, Причины брака — из схем модуля в entities; все будущие простые справочники — сразу entities. Основание-прецедент: хост уже так живёт (Host.Orders.StatusRegistry / FinancialStatusRegistry / SuborderTypes + seed-миграции 20260502*). Исследование API — 2026-07-11 (file:line в отчёте).
 
 ## 1. Целевая модель
 
@@ -17,7 +17,7 @@
 
 ## 2. Провижининг и перенос данных (миграция V5)
 
-Рецепт 1:1 из `/www/app/priv/repo/migrations/20260502155927_seed_order_status_entities.exs`:
+Рецепт 1:1 из `<host-app>/priv/repo/migrations/20260502155927_seed_order_status_entities.exs`:
 1. Идемпотентно ensure трёх Entity: `get_entity_by_name` → `create_entity` (+`set_entity_translation` en/et/ru для display_name); `created_by_uuid` передавать явно.
 2. Перенос записей: для каждой строки трёх старых таблиц → `EntityData.create` (идемпотентность — existence-check по `data->>'legacy_uuid'`, куда кладём старый uuid); **конвертация мультиязычности**: наш формат `data[locale][field]` → формат entities `%{"_primary_language" => ..., locale => %{"_title" => ...}}`.
 3. Перешивка ссылок: `machine_type_assignments.machine_type_uuid` и `machine_operations.operation_uuid` update по маппингу старый→новый uuid; DROP старых FK-констрейнтов.
@@ -30,11 +30,11 @@
 - **Вариант A (рекомендую)**: подтабы модуля Types/Operations/Defect Reasons остаются, но ведут на штатные страницы entities `/admin/entities/:slug/data` (DataNavigator/DataForm — полный CRUD, поиск, статусы, translations бесплатно). Наши LiveView/формы этих справочников удаляются (−4 LiveView, −3 схемы, −3 контекста). Минус: generic-UX вместо нашего.
 - Вариант B: тонкие module-LiveViews поверх EntityData API (сохранить наш UX/ColumnConfig) — дороже, дублирует то, что entities даёт даром. Оставить как возможный апгрейд.
 - В карточке станка: бейджи типов и секция операций читают через новый тонкий контекст (`Machines.list_machine_types/0` → EntityData c `lang:`), пикеры — select по published-записям.
-- reverse_references (конфиг andi): зарегистрировать счётчики «used by N machines» для operation/machine_type — advisory-подсказка в trash-UI entities.
+- reverse_references (конфиг хоста): зарегистрировать счётчики «used by N machines» для operation/machine_type — advisory-подсказка в trash-UI entities.
 
 ## 4. Изменения кода модуля (объём)
 
-Удаляются: schemas/{machine_type,operation,defect_reason}.ex, operations.ex, defect_reasons.ex, web/{machine_type_form,operation_form,defect_reason_form}_live.ex (+их тесты). Переписываются: machines.ex (sync_machine_types/sync_machine_operations — по мягким uuid; merged_field_template — чтение data["field_template"] записей entities; location_label не тронут), machine_form_live (пикеры), machines_live (подтабы→ссылки entities, удалить их списки), admin_tabs (пути), тест последнего таба, i18n. Новое: entities_registry.ex (ETS+PubSub, по StatusRegistry), конфиг reverse_references в andi.
+Удаляются: schemas/{machine_type,operation,defect_reason}.ex, operations.ex, defect_reasons.ex, web/{machine_type_form,operation_form,defect_reason_form}_live.ex (+их тесты). Переписываются: machines.ex (sync_machine_types/sync_machine_operations — по мягким uuid; merged_field_template — чтение data["field_template"] записей entities; location_label не тронут), machine_form_live (пикеры), machines_live (подтабы→ссылки entities, удалить их списки), admin_tabs (пути), тест последнего таба, i18n. Новое: entities_registry.ex (ETS+PubSub, по StatusRegistry), конфиг reverse_references в хосте.
 Оценка: ~14-16 задач, сопоставимо с половиной волны v0.2.x.
 
 ## 5. Риски/компромиссы (принять осознанно)

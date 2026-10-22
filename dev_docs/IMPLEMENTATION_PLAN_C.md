@@ -53,8 +53,8 @@
 - `phoenix_kit_manufacturing` на Hex: **только `0.2.0`** (опубликован 2026-07-10). На теге `0.2.0` файл `migrations/machines.ex` имеет `@current_version 1` — т.е. опубликованная версия соответствует **чистому V1**: `phoenix_kit_machines` без паспортных колонок/soft-location, `phoenix_kit_machine_type_assignments` с **живым FK** на `machine_type_uuid`, никаких `phoenix_kit_operations`/`phoenix_kit_machine_operations`/`phoenix_kit_defect_reasons`. Директива права насчёт «V1-формы» — подтверждено буквально.
 - `phoenix_kit_warehouse` на Hex: **только `0.1.0`** (2026-07-10). На теге `0.1.0` каталога `lib/phoenix_kit_warehouse/migrations/` **вообще не существует** — `migration_module/0` и таблицы `transfers`/`min_stock` никогда не публиковались и ни на одном внешнем хосте не могли быть применены. **Вывод: апгрейд-ветка в V143 для warehouse-таблиц не нужна вообще** — это чистый fresh-install DDL (`CREATE TABLE IF NOT EXISTS`), без FK-дропов и условных дропов. Апгрейд-логика (DROP FK / conditional DROP) нужна **только** для трёх legacy-таблиц manufacturing (`machine_types` — единственная реально способная быть непустой на внешнем хосте; `operations`/`defect_reasons` теоретически не существуют ни на одном опубликованном хосте, но код держим симметричным на все три ради локальных/будущих сборок).
 
-**Наш dev Postgres (andi)**
-- `andi/mix.exs`: `phoenix_kit` сейчас **HEX**-зависимость (`{:phoenix_kit, "~> 1.7.165", override: true}`, строка `# {:phoenix_kit, path: "../phoenix_kit", override: true}` закомментирована рядом — строки 73/74). `phoenix_kit_manufacturing`/`phoenix_kit_warehouse`/`phoenix_kit_locations` — уже `path:`-зависимости (строки 83/85/86).
+**Наш dev Postgres (хост)**
+- `mix.exs` хоста: `phoenix_kit` сейчас **HEX**-зависимость (`{:phoenix_kit, "~> 1.7.165", override: true}`, строка `# {:phoenix_kit, path: "../phoenix_kit", override: true}` закомментирована рядом — строки 73/74). `phoenix_kit_manufacturing`/`phoenix_kit_warehouse`/`phoenix_kit_locations` — уже `path:`-зависимости (строки 83/85/86).
 - Раз `phoenix_kit_manufacturing`/`warehouse` — `path:`-депы, `mix phoenix_kit.update`, запущенный ранее в этой среде, уже прогонял ЛОКАЛЬНЫЙ (не Hex) код `machines.ex`/`postgres.ex` модулей против нашей БД. Директива утверждает «наша БД уже в финальной форме» — вероятно так и есть (локальный `machines.ex` уже на V5), но это нужно фактически проверить в задаче D, а не считать данностью «machine_types/operations/defect_reasons» либо существуют-непустые, либо не существуют вовсе — код V143 обязан пережить оба случая идемпотентно.
 
 **EntitiesRegistry (`/www/phoenix_kit_manufacturing/lib/phoenix_kit_manufacturing/entities_registry.ex`)**
@@ -259,13 +259,13 @@ cd /www/phoenix_kit_warehouse && PHOENIX_KIT_PATH=/www/phoenix_kit mix test
 
 ## D) Репетиция на живом dev Postgres — **ОРКЕСТРАТОР, обязательная, мутирует БД**
 
-### C10 — [ОРКЕСТРАТОР] No-op прогон на реальной public-схеме andi
+### C10 — [ОРКЕСТРАТОР] No-op прогон на реальной public-схеме хоста
 
-Файлы: `/www/app/mix.exs` (временная правка строк 73-74).
+Файлы: `<host-app>/mix.exs` (временная правка строк 73-74).
 
 Что сделать:
 1. Перед началом — через Tidewave (`execute_sql_query`) зафиксировать ТЕКУЩЕЕ состояние: существуют ли `phoenix_kit_machine_types`/`operations`/`defect_reasons` на нашей БД (ожидание по директиве — нет, V5 их уже дропнул), есть ли FK на `machine_type_assignments.machine_type_uuid`/`machine_operations.operation_uuid` (ожидание — нет), есть ли уже `phoenix_kit_warehouse_transfers`/`min_stock` (не факт — не гарантировано разведкой, проверить фактически). Текущий маркер `COMMENT ON TABLE phoenix_kit` (ожидание — `'142'`).
-2. Правка `/www/app/mix.exs`: закомментировать строку 73 (`{:phoenix_kit, "~> 1.7.165", override: true},`), раскомментировать строку 74 (`{:phoenix_kit, path: "../phoenix_kit", override: true},`) — но `path: "../phoenix_kit"` должен резолвиться на ветку `core-v143-module-tables` (тот же чекаут `/www/phoenix_kit`, просто на нужной ветке — убедиться, что она чекаутнута перед этим шагом).
+2. Правка `<host-app>/mix.exs`: закомментировать строку 73 (`{:phoenix_kit, "~> 1.7.165", override: true},`), раскомментировать строку 74 (`{:phoenix_kit, path: "../phoenix_kit", override: true},`) — но `path: "../phoenix_kit"` должен резолвиться на ветку `core-v143-module-tables` (тот же чекаут `/www/phoenix_kit`, просто на нужной ветке — убедиться, что она чекаутнута перед этим шагом).
 3. `mix deps.get` (пересборка lock под path-dep) → recompile → **перезапуск elixir** (память: path-dep изменения требуют `sudo /usr/bin/supervisorctl restart elixir`, hot-reload не подхватит смену источника зависимости).
 4. Прогнать `mix phoenix_kit.update` (либо более точечно — через Tidewave `project_eval`, вызвав `PhoenixKit.Migrations.up(prefix: "public", version: 143)` напрямую, чтобы не тянуть весь igniter-flow с интерактивными промптами/asset rebuild) на `PORT=4999` (память: не занимать порт живого сервера).
 5. Верифицировать: маркер `'143'`, все 5 объектов на месте, ни одна из legacy directory tables не пересоздалась (если их не было — их и не должно появиться), warehouse-таблицы либо не изменились (если уже были), либо появились как fresh-install (если не было).
@@ -344,9 +344,9 @@ cd /www/phoenix_kit_warehouse && PHOENIX_KIT_PATH=/www/phoenix_kit mix test
 
 ## Ограничения среды (напоминание, как в предыдущих волнах)
 
-- `PHOENIX_KIT_PATH`, `PHOENIX_KIT_LOCATIONS_PATH` и т.п. — только для `mix test`/`mix compile` внутри модульных репо (`pk_dep/3` в их `mix.exs`), не влияют на `andi`.
-- В `/www/app` источник `phoenix_kit` переключается вручную комментированием строки 73/74 `mix.exs` — не через env var.
-- `mix phoenix_kit.update` — единственная команда для применения ядра к andi (память `feedback_phoenix_kit_update.md`) — никогда не разбивать на `gen.migration` + ручной `Ecto.Migrator.run`.
-- После смены path-dep источника в `/www/app` — обязателен `sudo /usr/bin/supervisorctl restart elixir` (память `feedback_path_dep_reload.md`), рутинные правки самих модулей (без смены источника зависимости) — без рестарта.
+- `PHOENIX_KIT_PATH`, `PHOENIX_KIT_LOCATIONS_PATH` и т.п. — только для `mix test`/`mix compile` внутри модульных репо (`pk_dep/3` в их `mix.exs`), не влияют на хост.
+- В `<host-app>` источник `phoenix_kit` переключается вручную комментированием строки 73/74 `mix.exs` — не через env var.
+- `mix phoenix_kit.update` — единственная команда для применения ядра к хосту (память `feedback_phoenix_kit_update.md`) — никогда не разбивать на `gen.migration` + ручной `Ecto.Migrator.run`.
+- После смены path-dep источника в `<host-app>` — обязателен `sudo /usr/bin/supervisorctl restart elixir` (память `feedback_path_dep_reload.md`), рутинные правки самих модулей (без смены источника зависимости) — без рестарта.
 - CHANGELOG.md и `@version` во всех `phoenix_kit*`-репозиториях — не трогаем, это зона мейнтейнера (память `feedback_phoenix_kit_changelog.md`).
 - Коммиты/PR — без AI-атрибуции (память `feedback_no_claude_attribution.md`).

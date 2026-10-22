@@ -24,7 +24,7 @@
 
 ## Прочитанные артефакты (протокол)
 
-`dev_docs/ENTITIES_MIGRATION_SPEC.md` (целиком, включая §2.5 и §5) · `machines.ex`, `operations.ex`, `defect_reasons.ex` · все 6 схем в `schemas/` · `migrations/machines.ex` (V1–V4) · `web/machine_form_live.ex`, `web/machines_live.ex` · `phoenix_kit_manufacturing.ex` (admin_tabs) · `errors.ex`, `paths.ex`, `column_config/machines.ex`, `gettext.ex`, `mix.exs` · андийские прецеденты `Andi.Orders.StatusRegistry`, `Andi.Orders.SuborderTypes`, `20260502155927_seed_order_status_entities.exs`, `20260502120100_seed_suborder_type_entity.exs`, `20260526062631_migrate_status_entities_to_multilang.exs` · API `phoenix_kit_entities.ex`, `entity_data.ex`, `events.ex`, `routes.ex` · `PhoenixKit.Utils.Multilang` / `MultilangForm` (подтверждён формат `data[lang]["_field"]`) · `PhoenixKit.ModuleRegistry.static_children/0` (механизм `children/0`).
+`dev_docs/ENTITIES_MIGRATION_SPEC.md` (целиком, включая §2.5 и §5) · `machines.ex`, `operations.ex`, `defect_reasons.ex` · все 6 схем в `schemas/` · `migrations/machines.ex` (V1–V4) · `web/machine_form_live.ex`, `web/machines_live.ex` · `phoenix_kit_manufacturing.ex` (admin_tabs) · `errors.ex`, `paths.ex`, `column_config/machines.ex`, `gettext.ex`, `mix.exs` · хостовые прецеденты `Host.Orders.StatusRegistry`, `Host.Orders.SuborderTypes`, `20260502155927_seed_order_status_entities.exs`, `20260502120100_seed_suborder_type_entity.exs`, `20260526062631_migrate_status_entities_to_multilang.exs` · API `phoenix_kit_entities.ex`, `entity_data.ex`, `events.ex`, `routes.ex` · `PhoenixKit.Utils.Multilang` / `MultilangForm` (подтверждён формат `data[lang]["_field"]`) · `PhoenixKit.ModuleRegistry.static_children/0` (механизм `children/0`).
 
 ## Цель
 
@@ -37,8 +37,8 @@
 3. **`field_template` переживает миграцию как данные, но теряет UI.** Спека прямо говорит: в `fields_definition` нового entity `machine_type` поле `field_template` НЕ объявляется (тривиальный validate_data_against_entity его не трогает — entity_data.ex, `validate_data_against_entity`). Значит после волны E **не будет никакого UI** для создания/правки `field_template` (сейчас это часть `machine_type_form_live.ex`, полностью удаляемого). Это не баг реализации — так спроектировано по спеке, но это реальная потеря функциональности. → см. открытый вопрос №1.
 4. **`entity_slug` в маршрутах entities = `entity.name`.** Подтверждено (`data_navigator.ex:106,120`: `params["entity_slug"]` идёт прямо в `Entities.get_entity_by_name/1`). Значит целевые URL — `/admin/entities/machine_type/data`, `/admin/entities/operation/data`, `/admin/entities/defect_reason/data` — без отдельного поля slug на Entity.
 5. **`phoenix_kit_entities` — Hex-пакет, но его таблицы создаются миграциями ЯДРА** (`phoenix_kit/lib/phoenix_kit/migrations/postgres/v40.ex`, `v58.ex`, `v74.ex`, `v108.ex`, `v131.ex` и др. содержат `phoenix_kit_entities`). Значит `test_helper.exs` модуля НЕ нужно отдельно мигрировать entities — `PhoenixKit.Migration.ensure_current/2` (уже вызывается) их создаёт как часть цепочки ядра, коль скоро версия `phoenix_kit` в `mix.exs` покрывает нужные версии (сейчас `~> 1.7.133` — покрывает).
-6. **`children/0` — штатный колбэк** `PhoenixKit.Module` (default `[]`, module.ex:315), собирается `PhoenixKit.ModuleRegistry.static_children/0` (module_registry.ex:320-339) **до старта реестра**, при загрузке хоста. Новый ETS-реестр модуля добавляется через него — сработает только после **рестарта andi** (не hot-reload, как и всё остальное в path-dep модуле).
-7. **`reverse_references` — конфиг на стороне ХОСТА** (`entity_data.ex:1907-1921`, `Application.get_env(:phoenix_kit_entities, :reverse_references, [])`), список `{entity_name, count_fn/1}`. `count_fn` должен уметь посчитать «сколько станков используют этот uuid» — то есть должен вызывать функцию модуля (`PhoenixKitManufacturing.Machines.count_machines_with_type/1`), которую нужно **добавить в модуле**, а конфиг-запись — в andi (ANDI-задача, см. ниже).
+6. **`children/0` — штатный колбэк** `PhoenixKit.Module` (default `[]`, module.ex:315), собирается `PhoenixKit.ModuleRegistry.static_children/0` (module_registry.ex:320-339) **до старта реестра**, при загрузке хоста. Новый ETS-реестр модуля добавляется через него — сработает только после **рестарта хоста** (не hot-reload, как и всё остальное в path-dep модуле).
+7. **`reverse_references` — конфиг на стороне ХОСТА** (`entity_data.ex:1907-1921`, `Application.get_env(:phoenix_kit_entities, :reverse_references, [])`), список `{entity_name, count_fn/1}`. `count_fn` должен уметь посчитать «сколько станков используют этот uuid» — то есть должен вызывать функцию модуля (`PhoenixKitManufacturing.Machines.count_machines_with_type/1`), которую нужно **добавить в модуле**, а конфиг-запись — в хосте (задача хоста, см. ниже).
 8. **Локаль в существующем коде не нормализуется.** `Machines.location_label/2` уже сегодня прокидывает `socket.assigns.locale` (голый gettext-код `"en"/"et"/"ru"`, см. `priv/gettext/{en,et,ru}`) напрямую в `Multilang.get_language_data/2` без маппинга в BCP-47 (`"en-US"` и т.п.), в отличие от андийского `SuborderTypes.normalize_locale/1`. Это существующее, уже принятое поведение модуля — реестр entities заимствует его как есть (см. открытый вопрос №6), не изобретаем новую нормализацию.
 9. **`Schemas.Machine.machine_types` (has_many :through)** — единственный реальный потребитель ассоциации, читаемый напрямую (без `linked_type_uuids/1`) — это `enrich_machines/2` в `machines_live.ex:210` (`m.machine_types |> Enum.map(& &1.name)`). После удаления схемы `MachineType` эта ассоциация **обязана** исчезнуть — нужен новый батч-запрос без Ecto-джойна.
 10. **`DefectReason` не имеет ни одного потребителя вне своего собственного списка/CRUD** (moduledoc схемы прямым текстом: «this wave does not link defect reasons to machines, operations, or any other resource»). После волны E контекст `DefectReasons` целиком лишний — его читающая часть модулю больше не нужна (в отличие от `machine_type`/`operation`, которым нужен тонкий реестр для пикеров).
@@ -63,7 +63,7 @@
 
 ### E2 — `PhoenixKitManufacturing.EntitiesRegistry` (ETS + PubSub)
 
-Новый файл: `lib/phoenix_kit_manufacturing/entities_registry.ex`. Смоделировать 1:1 по `Andi.Orders.StatusRegistry` (`/www/app/lib/andi/orders/status_registry.ex`) — GenServer + именованная public ETS-таблица, `Events.subscribe_to_all_data()` + `Events.subscribe_to_entities()` в `init/1`, полный `do_reload/0` на любое `{:data_*, ...}`/`{:entity_*, ...}` сообщение.
+Новый файл: `lib/phoenix_kit_manufacturing/entities_registry.ex`. Смоделировать 1:1 по `Host.Orders.StatusRegistry` (в хост-приложении) — GenServer + именованная public ETS-таблица, `Events.subscribe_to_all_data()` + `Events.subscribe_to_entities()` в `init/1`, полный `do_reload/0` на любое `{:data_*, ...}`/`{:entity_*, ...}` сообщение.
 
 Отличия от `StatusRegistry` (диктуются потребителями — machine_form_live picker'ы и `Machines`-контекст):
 
@@ -97,7 +97,7 @@
   ```
   (рядом с `migration_module/0`, строка ~76).
 
-Проверка: `mix compile --warnings-as-errors`. **Функционально проверяется только на хосте** (andi) после рестарта — `children/0` собирается `ModuleRegistry.static_children/0` при старте приложения (module_registry.ex:320-339), hot-reload не сработает (см. находку №6). Рестарт — ANDI-задача ниже, не в этом репо.
+Проверка: `mix compile --warnings-as-errors`. **Функционально проверяется только на хосте** (хост) после рестарта — `children/0` собирается `ModuleRegistry.static_children/0` при старте приложения (module_registry.ex:320-339), hot-reload не сработает (см. находку №6). Рестарт — задача хоста ниже, не в этом репо.
 
 Зависит от: E2.
 
@@ -217,7 +217,7 @@
 - НОВОЕ: `linked_type_uuids_by_machine/1` — принимает список `machine_uuid`, один батч-запрос `from(a in MachineTypeAssignment, where: a.machine_uuid in ^uuids, select: {a.machine_uuid, a.machine_type_uuid}) |> repo().all() |> Enum.group_by(...)`, возвращает `%{machine_uuid => [type_uuid, ...]}`. Заменяет снесённый `preload: :machine_types` для `machines_live.enrich_machines/2` (находка №9) — без него там будет N+1/сломанная ассоциация.
 - `merged_field_template/1` (552-586): заменить `list_machine_types(status: "active")` на `EntitiesRegistry.list(:machine_type, locale, status: "published")` (locale нужно прокинуть аргументом — `merged_field_template/2` с `locale \\ nil`, т.к. label не используется в мердже, но сам вызов регистра требует locale-параметр; можно передавать `nil`, если реестр это терпит — свериться с E2-реализацией) и читать `field_template` из `record.data["field_template"] || []` вместо `%MachineType{field_template: ...}` (docstring про «first wins» слияние — не менять, логика слияния не завязана на источник данных).
 - `list_machine_operations/1` (330-342): убрать `join: o in assoc(mo, :operation)` (ассоциация снесена в E7); вместо джойна — `from(mo in MachineOperation, where: mo.machine_uuid == ^machine_uuid) |> repo().all()`, затем для каждой строки `EntitiesRegistry.get(mo.operation_uuid, :operation)` → собрать `%{operation: <map c :uuid,:name,:unit,:base_time_norm_seconds,:status>, time_norm_seconds: mo.time_norm_seconds}`; сортировку `order_by: [asc: o.name]` заменить на `Enum.sort_by(&(&1.operation.name || ""))` после резолва (SQL-сортировка по имени операции больше недоступна — имя не в этой таблице).
-- НОВОЕ: `count_machines_with_type/1` и `count_machines_with_operation/1` — простые `from(a in MachineTypeAssignment, where: a.machine_type_uuid == ^uuid, select: count()) |> repo().one()` (и аналогично для `MachineOperation`/`operation_uuid`) — для ANDI-задачи `reverse_references` ниже.
+- НОВОЕ: `count_machines_with_type/1` и `count_machines_with_operation/1` — простые `from(a in MachineTypeAssignment, where: a.machine_type_uuid == ^uuid, select: count()) |> repo().one()` (и аналогично для `MachineOperation`/`operation_uuid`) — для задачи хоста `reverse_references` ниже.
 - Добавить `alias PhoenixKitManufacturing.EntitiesRegistry` в шапку модуля; убрать `alias ... Operation` из списка `Schemas.{...}` (строки 40-46), если `Operation` больше нигде в файле не используется после правок выше.
 - Актуализировать moduledoc (строки 1-31): убрать «Both machines and types use hard-delete only» (типы больше не хард-делитятся этим модулем вообще — они под entities-трэшем), поправить пример из `## Usage from IEx` (там `Machines.create_machine_type/1` — больше не существует).
 
@@ -376,11 +376,11 @@ mix gettext.merge priv/gettext
 
 ---
 
-## ANDI-задача (для оркестратора — НЕ выполняется агентами волны E в `/www/app`)
+## Задача хоста (для оркестратора — НЕ выполняется агентами волны E в `<host-app>`)
 
-Реализуется в `/www/app` после того, как `phoenix_kit_manufacturing` с волной E закоммичен (и, если публикуется на Hex — после публикации; при локальной разработке через `PHOENIX_KIT_MANUFACTURING_PATH`, если такой env поддержан в andi's mix.exs, или прямой path-dep, как сейчас).
+Реализуется в `<host-app>` после того, как `phoenix_kit_manufacturing` с волной E закоммичен (и, если публикуется на Hex — после публикации; при локальной разработке через `PHOENIX_KIT_MANUFACTURING_PATH`, если такой env поддержан в mix.exs хоста, или прямой path-dep, как сейчас).
 
-1. **`reverse_references` конфиг** — в `/www/app/config/config.exs` добавить:
+1. **`reverse_references` конфиг** — в `<host-app>/config/config.exs` добавить:
    ```elixir
    config :phoenix_kit_entities,
      reverse_references: [
@@ -396,8 +396,8 @@ mix gettext.merge priv/gettext
    - `/admin/manufacturing/machines/types` редиректит на `/admin/entities/machine_type/data` (аналогично operations/defect-reasons).
    - На `/admin/entities/machine_type/data` — записи с правильными title/переводами, `field_template`-значения видны в сыром `data` (нет UI-виджета — ожидаемо, см. открытый вопрос №1) при попытке trash — hint «used by N machines» отражает реальные привязки.
    - Форма станка (`/admin/manufacturing/machines/:uuid/edit`) — пикер типов/операций работает, `merged_field_template` рендерит специфичные поля, сохранение синкает `machine_type_assignments`/`machine_operations` по новым uuid.
-5. Отчитаться перед owner о факте выполнения upstream-согласования (spec §6 — RFC/issue мейнтейнеру ДО реализации; если не сделано, задача блокирует старт волны E целиком, не только ANDI-часть).
+5. Отчитаться перед owner о факте выполнения upstream-согласования (spec §6 — RFC/issue мейнтейнеру ДО реализации; если не сделано, задача блокирует старт волны E целиком, не только часть хоста).
 
 ## Порядок применения миграции
 
-Только оркестратор запускает `mix phoenix_kit.update`/эквивалент против реальной БД (инструкция задания). Локально в песочнице волны E — максимум `mix test.setup` (если Postgres доступен) для юнит/интеграционных тестов E6; полный прогон на живых legacy-данных — ANDI-задача п.3 выше.
+Только оркестратор запускает `mix phoenix_kit.update`/эквивалент против реальной БД (инструкция задания). Локально в песочнице волны E — максимум `mix test.setup` (если Postgres доступен) для юнит/интеграционных тестов E6; полный прогон на живых legacy-данных — задача хоста п.3 выше.

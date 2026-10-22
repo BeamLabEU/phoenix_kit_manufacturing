@@ -51,7 +51,7 @@ defmodule PhoenixKitManufacturing.Web.MachinesLive do
   `EntitiesRegistry.label/3`. If this process's callback wins the race, the
   re-render can briefly show the pre-change label/title until the *next*
   broadcast or navigation. This is accepted as the cost of the pattern —
-  the same trade-off Andi's `StatusRegistry`-backed live views make — not a
+  the same trade-off the host's `StatusRegistry`-backed live views make — not a
   bug to fix here. Deliberately **not** mitigated by making this callback
   synchronously reload the registry itself: that would couple this
   LiveView to `EntitiesRegistry`'s internals and reintroduce the N+1 query

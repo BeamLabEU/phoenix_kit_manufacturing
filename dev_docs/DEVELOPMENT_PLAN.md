@@ -4,9 +4,9 @@
 
 ## 0. Что уже есть (техническая база)
 
-- Форк `timujinne/phoenix_kit_manufacturing` (upstream `BeamLabEU/phoenix_kit_manufacturing`), подключён в andi как path dep — та же схема, что у склада.
+- Форк `timujinne/phoenix_kit_manufacturing` (upstream `BeamLabEU/phoenix_kit_manufacturing`), подключён в хост-приложении как path dep — та же схема, что у склада.
 - Регистрация через `use PhoenixKit.Module`: ключ `manufacturing`, включение через Settings (`manufacturing_enabled`), пункт меню `priority: 154` в группе `:admin_main` — сразу под Складом (153).
-- Роуты генерируются автоматически из `admin_tabs/0` (`live_view:` в Tab) — router.ex в andi не трогаем.
+- Роуты генерируются автоматически из `admin_tabs/0` (`live_view:` в Tab) — router.ex хоста не трогаем.
 - Пока без таблиц БД и миграций.
 
 ## 1. Станки (Machines) — справочник
@@ -44,7 +44,7 @@
 2. **Готовая продукция на склад**: по завершении производства — Goods Receipt (приход) с ссылкой на тот же документ.
 3. Остатки/резервы считает склад (stock_ledger / committed_quantities) — производство своих остатков не ведёт, только ссылается.
 
-Это ничего не требует менять в складском модуле — регистрация делается в конфиге andi (как уже сделано для order/sub_order через `Andi.Warehouse.Integration`).
+Это ничего не требует менять в складском модуле — регистрация делается в конфиге хоста (как уже сделано для order/sub_order через `Host.Warehouse.Integration`).
 
 ## 4. Интеграции с другими модулями
 
@@ -152,7 +152,7 @@
 как модуль-собственные схемы/контексты, а как справочники на базе
 `phoenix_kit_entities` (entity blueprints `machine_type`/`operation`/
 `defect_reason`, миграция V5) — по прецеденту андийских
-`Andi.Orders.StatusRegistry`/`SuborderTypes`. Полное обоснование и разбивка
+`Host.Orders.StatusRegistry`/`SuborderTypes`. Полное обоснование и разбивка
 задач — `dev_docs/ENTITIES_MIGRATION_SPEC.md` и
 `dev_docs/IMPLEMENTATION_PLAN_E.md`. На практике:
 

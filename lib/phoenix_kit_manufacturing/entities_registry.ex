@@ -6,7 +6,7 @@ defmodule PhoenixKitManufacturing.EntitiesRegistry do
   on any entity/entity-data change. Concurrent readers always see a
   consistent snapshot.
 
-  Modeled 1:1 on `Andi.Orders.StatusRegistry`. The three "blueprint"
+  Modeled 1:1 on `Host.Orders.StatusRegistry`. The three "blueprint"
   entities (`machine_type`/`operation`/`defect_reason`) are provisioned
   idempotently by `provision_blueprints/0`, retried until all three are
   confirmed present. Two retry paths run in parallel:

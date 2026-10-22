@@ -9,8 +9,8 @@ defmodule PhoenixKitManufacturing.MachinesTest do
   # — the registry queries the DB from its *own* GenServer process, so the
   # Sandbox must run in shared mode for that reload to see this test's
   # not-yet-committed fixtures. Same pattern as `EntitiesRegistryTest` and
-  # (in the andi codebase this registry is modeled on)
-  # `Andi.Orders.StatusRegistryTest`.
+  # (in the host codebase this registry is modeled on)
+  # `Host.Orders.StatusRegistryTest`.
   use PhoenixKitManufacturing.DataCase, async: false
 
   alias PhoenixKit.Utils.Multilang
