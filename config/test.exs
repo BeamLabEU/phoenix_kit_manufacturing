@@ -9,13 +9,15 @@ config :phoenix_kit_manufacturing, ecto_repos: [PhoenixKitManufacturing.Test.Rep
 # allowed to CREATE (e.g. a shared instance) instead of the name Hex CI
 # provisions for itself. Same mechanism as core phoenix_kit's
 # config/test.exs — see there for the full rationale. Left unset (CI's
-# case), this falls back to the previous hardcoded name, so publishing
-# and CI are unaffected.
+# case), this falls back to the previous hardcoded name. A partition suffix
+# applies to either base name so parallel test runners never share a database.
 pg_test_db =
-  case System.get_env("PGDATABASE") do
-    value when is_binary(value) and value != "" -> String.trim(value)
-    _ -> "phoenix_kit_manufacturing_test#{System.get_env("MIX_TEST_PARTITION")}"
+  case String.trim(System.get_env("PGDATABASE", "")) do
+    "" -> "phoenix_kit_manufacturing_test"
+    value -> value
   end
+
+pg_test_db = pg_test_db <> System.get_env("MIX_TEST_PARTITION", "")
 
 # `PGPOOL` bounds the connection pool the same way core does — the default
 # (`schedulers_online() * 2`) opens dozens of connections on a many-core
@@ -37,6 +39,7 @@ config :phoenix_kit_manufacturing, PhoenixKitManufacturing.Test.Repo,
   username: System.get_env("PGUSER", "postgres"),
   password: System.get_env("PGPASSWORD", "postgres"),
   hostname: System.get_env("PGHOST", "localhost"),
+  port: String.to_integer(System.get_env("PGPORT", "5432")),
   database: pg_test_db,
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: pg_test_pool

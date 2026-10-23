@@ -151,7 +151,7 @@
 станков», «Операции» и «Причины брака» реализованы (§Б.2-4 выполнены), но не
 как модуль-собственные схемы/контексты, а как справочники на базе
 `phoenix_kit_entities` (entity blueprints `machine_type`/`operation`/
-`defect_reason`, миграция V5) — по прецеденту андийских
+`defect_reason`, миграция V5) — по прецеденту справочников хоста:
 `Host.Orders.StatusRegistry`/`SuborderTypes`. Полное обоснование и разбивка
 задач — `dev_docs/ENTITIES_MIGRATION_SPEC.md` и
 `dev_docs/IMPLEMENTATION_PLAN_E.md`. На практике:

@@ -107,6 +107,23 @@ defmodule PhoenixKitManufacturingTest do
       assert Tab.localized_label(dashboard) == "Töölaud"
     end
 
+    test "the hidden machine type template label is translated in et and ru" do
+      tab =
+        Enum.find(
+          PhoenixKitManufacturing.admin_tabs(),
+          &(&1.id == :manufacturing_machine_type_template)
+        )
+
+      for {locale, expected} <- [
+            {"et", "Masinatüübi mall"},
+            {"ru", "Шаблон типа станка"}
+          ] do
+        assert Gettext.with_locale(PhoenixKitManufacturing.Gettext, locale, fn ->
+                 Tab.localized_label(tab)
+               end) == expected
+      end
+    end
+
     test "all subtabs reference the main tab as parent" do
       [main | subtabs] = PhoenixKitManufacturing.admin_tabs()
 

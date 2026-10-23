@@ -20,7 +20,7 @@ defmodule PhoenixKitManufacturing.CorePinConformanceTest do
   @must_reject ["1.7.189", "1.7.236", "1.9.4", "3.0.0"]
 
   test "the :phoenix_kit requirement admits every core 2.x and nothing else" do
-    requirement = core_requirement()
+    assert {:ok, requirement} = published_requirement(File.read!("mix.exs"), :phoenix_kit)
 
     assert match?({:ok, _parsed}, Version.parse_requirement(requirement)),
            "`:phoenix_kit` requirement #{inspect(requirement)} is not a valid requirement"
@@ -39,41 +39,82 @@ defmodule PhoenixKitManufacturing.CorePinConformanceTest do
     end
   end
 
-  # Resolution order matters. `Mix.Project.config()` is exact, but it reports the
-  # dep as it resolved THIS run — and `pk_dep/3` rewrites it to a `path:` tuple
-  # whenever PHOENIX_KIT_PATH is exported, which is the workspace's sanctioned way
-  # to run this suite against unreleased core. Reading the committed literal from
-  # mix.exs as a fallback keeps the check meaningful under that override instead
-  # of failing the documented workflow — and it still fails when a path dep is
-  # COMMITTED, because then there is no literal left to find.
-  defp core_requirement do
-    resolved_requirement() || committed_requirement() ||
-      flunk("""
-      No version requirement found for `:phoenix_kit`.
+  test "all PhoenixKit dependencies retain a published Hex requirement" do
+    source = File.read!("mix.exs")
 
-      Neither the resolved dep nor mix.exs carries one, which means a `path:`
-      dep has been committed. That ships a broken package and breaks every
-      other consumer's build — restore the published requirement.
-      """)
-  end
+    for app <- [
+          :phoenix_kit,
+          :phoenix_kit_comments,
+          :phoenix_kit_entities,
+          :phoenix_kit_locations
+        ] do
+      assert {:ok, requirement} = published_requirement(source, app),
+             "#{app} must use a Hex requirement; use its <APP>_PATH variable for local work"
 
-  defp resolved_requirement do
-    Mix.Project.config()
-    |> Keyword.get(:deps, [])
-    |> Enum.find_value(fn
-      {:phoenix_kit, requirement} when is_binary(requirement) -> requirement
-      {:phoenix_kit, requirement, _opts} when is_binary(requirement) -> requirement
-      _ -> nil
-    end)
-  end
-
-  # First match wins, matching how every other tool in the workspace reads this
-  # pin. Covers both the bare `{:phoenix_kit, "..."}` and the `pk_dep(:phoenix_kit,
-  # "...")` forms, since the captured text is identical in each.
-  defp committed_requirement do
-    case Regex.run(~r/:phoenix_kit,\s*"([^"]+)"/, File.read!("mix.exs")) do
-      [_full, requirement] -> requirement
-      _ -> nil
+      assert {:ok, _} = Version.parse_requirement(requirement)
     end
   end
+
+  test "committed path and git dependencies fail even with a version or a commented Hex pin" do
+    for dependency <- [
+          ~s({:phoenix_kit, path: "../phoenix_kit"}),
+          ~s({:phoenix_kit, "~> 2.0", path: "../phoenix_kit"}),
+          ~s({:phoenix_kit, "~> 2.0", git: "https://example.com/core.git"}),
+          ~s|pk_dep(:phoenix_kit, "~> 2.0", path: "../phoenix_kit")|
+        ] do
+      source = """
+      # pk_dep(:phoenix_kit, "~> 2.0")
+      defp deps, do: [#{dependency}]
+      """
+
+      assert published_requirement(source, :phoenix_kit) == :error
+    end
+  end
+
+  test "published pins work in both tuple forms and through the local-override helper" do
+    for dependency <- [
+          ~s({:phoenix_kit, "~> 2.0"}),
+          ~s({:phoenix_kit, "~> 2.0", runtime: false}),
+          ~s|pk_dep(:phoenix_kit, "~> 2.0")|
+        ] do
+      source = "defp deps, do: [#{dependency}]"
+      assert published_requirement(source, :phoenix_kit) == {:ok, "~> 2.0"}
+    end
+  end
+
+  # Read the declared dependencies, not this run's env-rewritten resolution.
+  # Parsing ignores commented pins and catches non-Hex options even when a
+  # version string accompanies them. No environment changes are needed.
+  defp published_requirement(source, app) do
+    {_, [dependencies]} =
+      source
+      |> Code.string_to_quoted!()
+      |> Macro.prewalk([], fn
+        {:defp, _, [{:deps, _, args}, [do: dependencies]]} = node, acc
+        when args in [nil, []] ->
+          {node, [dependencies | acc]}
+
+        node, acc ->
+          {node, acc}
+      end)
+
+    dependencies
+    |> Enum.map(&dependency_parts/1)
+    |> Enum.find(&match?({^app, _, _}, &1))
+    |> case do
+      {^app, requirement, opts} when is_binary(requirement) and is_list(opts) ->
+        if Enum.any?([:path, :git, :github, :in_umbrella], &Keyword.has_key?(opts, &1)),
+          do: :error,
+          else: {:ok, requirement}
+
+      _ ->
+        :error
+    end
+  end
+
+  defp dependency_parts({:pk_dep, _, [app, requirement]}), do: {app, requirement, []}
+  defp dependency_parts({:pk_dep, _, [app, requirement, opts]}), do: {app, requirement, opts}
+  defp dependency_parts({:{}, _, [app, requirement, opts]}), do: {app, requirement, opts}
+  defp dependency_parts({app, requirement}), do: {app, requirement, []}
+  defp dependency_parts(_), do: nil
 end

@@ -189,6 +189,16 @@ Two-level suite (see `test/test_helper.exs`):
   then applies `PhoenixKitManufacturing.Migrations.up_statements/2` directly
   to stamp the `pkm_schema:1` marker, then uses `Ecto.Adapters.SQL.Sandbox`.
 
+Test connections accept `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, and
+`PGDATABASE`. A blank `PGDATABASE` uses `phoenix_kit_manufacturing_test`;
+`MIX_TEST_PARTITION` is appended to either the default or overridden database
+name. `PGPOOL` must be a positive integer when set (an empty value uses the
+default pool size). For example:
+
+```bash
+PGDATABASE=manufacturing_test PGPORT=5544 PGPOOL=4 mix test
+```
+
 Version-compliance: `test/phoenix_kit_manufacturing_test.exs` asserts
 `version/0` equals the current release. Keep it in sync (see below).
 
