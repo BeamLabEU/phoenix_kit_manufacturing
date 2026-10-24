@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.4.6 - 2026-10-24
+
+### Fixed
+
+- The "Machine Type Template" label was missing from `default.pot` and the
+  English catalogue, so a fresh `mix gettext.extract` dropped it and English
+  had no entry for it. The et and ru translations were already there.
+
+### Changed
+
+- Comments and moduledocs name a neutral host application instead of a
+  specific one. (#16)
+- Updated dependencies: `phoenix_kit` 2.64.1, `phoenix_kit_comments`,
+  `phoenix_kit_entities` and `phoenix_kit_locations` to their current
+  releases, and `plug_crypto` 2.2.1 (patched). The requirements are unchanged
+  (`phoenix_kit ~> 2.0`, `phoenix_kit_comments ~> 0.3`,
+  `phoenix_kit_entities ~> 0.3`, `phoenix_kit_locations ~> 0.4`).
+
 ## 0.4.5 - 2026-09-16
 
 ### Added
