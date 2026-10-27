@@ -67,25 +67,30 @@ defmodule PhoenixKitManufacturing.DependencyFloorsTest do
     refute_floor_below(:phoenix_kit_entities, "0.2.6")
   end
 
-  test "every sibling pin requires a core-2.0-era release" do
-    # The sweep's actual contract: this module and every sibling it depends on
-    # must resolve to a release built against core 2.x. A pin that slipped back
-    # to a 1.7-era sibling would resolve, then fail at `mix deps.get` in the
-    # consumer's build with an unsatisfiable core requirement.
-    for {app, first_core_2_release} <- [
-          {:phoenix_kit, "2.0.0"},
-          {:phoenix_kit_comments, "0.3.0"},
-          {:phoenix_kit_entities, "0.3.0"},
-          {:phoenix_kit_locations, "0.4.0"}
-        ] do
-      case requirement(app) do
-        nil ->
-          :ok
+  test "the core pin excludes core 1.x and admits core 3.x" do
+    req = requirement(:phoenix_kit)
 
-        req ->
-          assert Version.match?(first_core_2_release, req),
-                 "#{app} #{req} excludes #{first_core_2_release}, its first release requiring core 2.0"
-      end
+    refute Version.match?("1.7.236", req)
+    assert Version.match?("3.0.0", req)
+    refute Version.match?("4.0.0", req)
+  end
+
+  test "every sibling pin starts at the release that carries its own migration chain" do
+    # Core 3.0 creates no module table, so a sibling older than its first
+    # chain-carrying release would resolve and then leave the tables missing.
+    # {app, last release before the chain, first release with it}
+    for {app, before_chain, with_chain} <- [
+          {:phoenix_kit_comments, "0.4.10", "0.5.0"},
+          {:phoenix_kit_entities, "0.6.1", "0.7.0"},
+          {:phoenix_kit_locations, "0.7.0", "0.8.0"}
+        ] do
+      req = requirement(app)
+
+      refute Version.match?(before_chain, req),
+             "#{app} #{req} admits #{before_chain}, which has no chain of its own"
+
+      assert Version.match?(with_chain, req),
+             "#{app} #{req} excludes #{with_chain}, the first release with the chain"
     end
   end
 end
