@@ -1,7 +1,7 @@
 defmodule PhoenixKitManufacturing.MixProject do
   use Mix.Project
 
-  @version "0.4.6"
+  @version "0.5.0"
   @source_url "https://github.com/BeamLabEU/phoenix_kit_manufacturing"
 
   def project do
@@ -96,11 +96,11 @@ defmodule PhoenixKitManufacturing.MixProject do
       # 0.2.6 shipped `PhoenixKitComments.Embed`, which `Web.MachineFormLive`
       # `use`s. The `Code.ensure_loaded?` guards in `Manufacturing.Comments`
       # cover the module being absent, not an older one missing functions.
-      pk_dep(:phoenix_kit_comments, "~> 0.3"),
-      pk_dep(:phoenix_kit_entities, "~> 0.3"),
+      pk_dep(:phoenix_kit_comments, "~> 0.5"),
+      pk_dep(:phoenix_kit_entities, "~> 0.7"),
       # PlacePicker / Spaces.full_path shipped in phoenix_kit_locations 0.3.0.
       # For unpublished local changes: PHOENIX_KIT_LOCATIONS_PATH=../phoenix_kit_locations.
-      pk_dep(:phoenix_kit_locations, "~> 0.4"),
+      pk_dep(:phoenix_kit_locations, "~> 0.8"),
       {:phoenix_live_view, "~> 1.1"},
       {:ex_doc, "~> 0.39", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
