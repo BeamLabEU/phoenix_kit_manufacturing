@@ -17,12 +17,6 @@ defmodule PhoenixKitManufacturing.MigrationsTest do
   none of them touch a database.
   """
 
-  @machine_tables ~w(
-    phoenix_kit_machines
-    phoenix_kit_machine_type_assignments
-    phoenix_kit_machine_operations
-  )
-
   test "PhoenixKitManufacturing declares the module-owned migration chain" do
     # Assert the VALUE, not `function_exported?/3` — `use PhoenixKit.Module`
     # injects an overridable default `migration_module/0`, so exportedness
@@ -296,8 +290,6 @@ defmodule PhoenixKitManufacturing.MigrationsTest do
   end
 
   describe "the chain can never destroy any of the 3 tables" do
-    alias PhoenixKit.Migrations.ExpectedSchema
-
     # Compared against the WHOLE expected content, not scanned for a
     # forbidden substring — a substring check only sees statements the
     # builder produced, so anything appended past it (a literal
@@ -383,37 +375,6 @@ defmodule PhoenixKitManufacturing.MigrationsTest do
       end
     end
 
-    # Core's manifest for the 3 machine tables' index/constraint objects,
-    # not a hand-typed list — a hand-typed list is maintained by the same
-    # hand that adds a statement, so it catches a slip but never a
-    # deliberate one; the manifest is written on core's side, so this fails
-    # both when the chain emits an object core does not declare AND when
-    # core declares an object the chain stopped adopting.
-    test "up_statements/2 emits exactly the index/constraint operations core's manifest declares for the 3 machine tables" do
-      for prefix <- ["public", "machines_alt"] do
-        actual =
-          Migrations.up_statements(prefix, 1)
-          |> Enum.reject(
-            &(String.starts_with?(&1, "CREATE TABLE") or
-                String.starts_with?(&1, "ALTER TABLE") or
-                String.starts_with?(&1, "COMMENT ON TABLE"))
-          )
-          |> Enum.map(&operation/1)
-
-        expected = expected_index_constraint_operations()
-
-        assert Enum.sort(actual) == Enum.sort(expected),
-               """
-               up_statements(#{inspect(prefix)}, 1) does not emit the operation set
-               core's ExpectedSchema declares for the 3 machine tables' indexes and
-               constraints.
-
-               unexpected: #{inspect(Enum.sort(actual) -- Enum.sort(expected))}
-               missing:    #{inspect(Enum.sort(expected) -- Enum.sort(actual))}
-               """
-      end
-    end
-
     test "the 2 real unique indexes are present, and only them" do
       unique_indexes =
         Migrations.up_statements()
@@ -426,36 +387,6 @@ defmodule PhoenixKitManufacturing.MigrationsTest do
                "idx_machine_operations_unique",
                "idx_machine_type_assignments_unique"
              ]
-    end
-
-    defp expected_index_constraint_operations do
-      machine_tables = @machine_tables
-
-      ExpectedSchema.objects("public")
-      |> Enum.filter(fn object ->
-        case object.check do
-          {_kind, %{table: table}} ->
-            table in machine_tables and object.class in [:index, :constraint] and
-              Map.get(object, :presence) == :required
-
-          _ ->
-            false
-        end
-      end)
-      |> Enum.map(fn object ->
-        name = object.check |> elem(1) |> Map.fetch!(:name)
-
-        case object.class do
-          :constraint -> {"DO", name}
-          :index -> {index_verb(object.create), name}
-        end
-      end)
-    end
-
-    defp index_verb(create) do
-      if String.starts_with?(create, "CREATE UNIQUE INDEX"),
-        do: "CREATE UNIQUE INDEX",
-        else: "CREATE INDEX"
     end
 
     defp strip_referential_actions(statement) do
@@ -579,7 +510,6 @@ defmodule PhoenixKitManufacturing.MigrationsTest do
   end
 
   describe "V1 stays aligned with core's manifest (while core audits the tables)" do
-    alias PhoenixKit.Migrations.ExpectedSchema
     alias PhoenixKitManufacturing.Schemas.Machine
 
     # `phoenix_kit_machine_type_assignments`/`phoenix_kit_machine_operations`
@@ -614,55 +544,6 @@ defmodule PhoenixKitManufacturing.MigrationsTest do
                declared:        #{inspect(schema.column_widths())}
                """
       end
-    end
-
-    # Core's V144 baseline still creates these tables and core's
-    # ExpectedSchema audits that shape, so until the first shape-changing
-    # chain version the two DDLs must agree — with NO documented exception
-    # (unlike customer_support's `changed_by_uuid`): V144's source, core's
-    # manifest, and this chain's V1 all agree byte-for-byte today.
-    test "every column core declares matches V1's, in full, for every table" do
-      statements = Migrations.up_statements("public", 1)
-
-      for table <- @machine_tables do
-        core = core_columns(table)
-        ours = v1_columns(statements, table)
-
-        assert Map.keys(ours) -- Map.keys(core) == [],
-               "#{table}: V1 creates columns core's manifest does not declare: " <>
-                 inspect(Map.keys(ours) -- Map.keys(core))
-
-        assert Map.keys(core) -- Map.keys(ours) == [],
-               "#{table}: V1 does not create columns core's manifest declares: " <>
-                 inspect(Map.keys(core) -- Map.keys(ours))
-
-        for {column, expected} <- core do
-          assert Map.fetch!(ours, column) == expected,
-                 """
-                 #{table}.#{column}: V1 and core's manifest disagree on the column's shape.
-
-                 V1:              #{inspect(Map.fetch!(ours, column))}
-                 core's manifest: #{inspect(expected)}
-
-                 V1 is an adoption and must be shape-identical to core's
-                 baseline. A deliberate change is a chain version (V2+).
-                 """
-        end
-      end
-    end
-
-    # `%{type, default, not_null}` per column, from the newest revision.
-    defp core_columns(table) do
-      prefix = "column:#{table}."
-
-      ExpectedSchema.objects("public")
-      |> Enum.filter(&(&1.class == :column and String.starts_with?(&1.id, prefix)))
-      |> Map.new(fn object ->
-        {_version, shape} = List.last(object.revisions)
-
-        {String.replace_prefix(object.id, prefix, ""),
-         %{type: shape.type, default: shape.default, not_null: shape.not_null}}
-      end)
     end
 
     # The same shape, parsed back out of the CREATE TABLE V1 emits for

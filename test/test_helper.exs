@@ -113,6 +113,17 @@ repo_available =
       # no-ops cleanly.
       PhoenixKit.Migration.ensure_current(PhoenixKitManufacturing.Test.Repo, log: false)
 
+      # The tables other modules own (core 3.0 no longer creates them): their real
+      # chains, in dependency order.
+      for chain <- [
+            PhoenixKitComments.Migrations,
+            PhoenixKitEntities.Migrations,
+            PhoenixKitLocations.Migrations
+          ],
+          stmt <- chain.up_statements("public") do
+        PhoenixKitManufacturing.Test.Repo.query!(stmt)
+      end
+
       # Stamp this module's own `pkm_schema:1` marker on top of core's
       # tables, matching what a real host running `mix phoenix_kit.update`
       # ends up with — `PhoenixKitManufacturing.Migrations.up_statements/2`

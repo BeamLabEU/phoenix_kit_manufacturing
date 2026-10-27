@@ -88,7 +88,9 @@ defmodule PhoenixKitManufacturing.MixProject do
       # `Number.parse_decimal/2` (core 2.26.0). The pin deliberately stays
       # `~> 2.0` anyway — see test/core_pin_conformance_test.exs — so a host
       # on core < 2.26 must upgrade core alongside this module.
-      pk_dep(:phoenix_kit, "~> 2.0"),
+      # Floor 2.65.0: the first core with the `file_references/0` and `expected_schema/0`
+      # callbacks this module implements (`@impl`). The ceiling is open through core 3.x.
+      pk_dep(:phoenix_kit, ">= 2.65.0 and < 4.0.0"),
       # phoenix_kit_comments: 0.2.8 ships `subscribe/2`/`unsubscribe/2` and
       # the list form of `count_comments/3` (`Manufacturing.Comments`);
       # 0.2.6 shipped `PhoenixKitComments.Embed`, which `Web.MachineFormLive`
