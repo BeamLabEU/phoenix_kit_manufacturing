@@ -88,12 +88,7 @@ defmodule PhoenixKitManufacturing do
   @impl PhoenixKit.Module
   def css_sources, do: [:phoenix_kit_manufacturing]
 
-  # PhoenixKit.Module.media_reorganizer/0 (core ≥ 2.24.0, which ships
-  # Storage.Reorganizer). No `@impl` — the `phoenix_kit ~> 2.0` pin still
-  # admits older cores without the callback, where `@impl` would warn;
-  # `ModuleRegistry.all_media_reorganizers/0` looks this function up by
-  # name, not by behaviour, so it is collected on any core that has the
-  # engine.
+  @impl PhoenixKit.Module
   def media_reorganizer, do: PhoenixKitManufacturing.MediaReorganizer
 
   @doc """

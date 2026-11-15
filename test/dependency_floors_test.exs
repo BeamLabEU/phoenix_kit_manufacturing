@@ -67,11 +67,11 @@ defmodule PhoenixKitManufacturing.DependencyFloorsTest do
     refute_floor_below(:phoenix_kit_entities, "0.2.6")
   end
 
-  test "the core pin excludes core 1.x and admits core 3.x" do
+  test "the core pin excludes core 1.x and admits core 3.x from 3.5.0" do
     req = requirement(:phoenix_kit)
 
     refute Version.match?("1.7.236", req)
-    assert Version.match?("3.0.0", req)
+    assert Version.match?("3.5.0", req)
     refute Version.match?("4.0.0", req)
   end
 

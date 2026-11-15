@@ -2,11 +2,7 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
   @moduledoc """
   Manufacturing's media-reorganizer plan source.
 
-  Implements `PhoenixKit.Modules.Storage.Reorganizer.Source` (core ≥ 2.24.0)
-  without declaring `@behaviour`: the `phoenix_kit ~> 2.0` pin still admits
-  older cores that lack the module, where `@behaviour` would warn. `plan/2`
-  (`plan(actor_uuid, opts) :: [map()]`) matches `Source.plan/2`; once the pin
-  floor reaches 2.24.0 the only follow-up is adding `@behaviour`/`@impl`. See
+  Implements `PhoenixKit.Modules.Storage.Reorganizer.Source`. See
   `PhoenixKitManufacturing.media_reorganizer/0` for the registration.
 
   `plan/2` calls the host's configured `:attachments_parent_folder` hook
@@ -147,6 +143,8 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
      actions (R4).
   """
 
+  @behaviour PhoenixKit.Modules.Storage.Reorganizer.Source
+
   import Ecto.Query, warn: false
 
   require Logger
@@ -177,6 +175,7 @@ defmodule PhoenixKitManufacturing.MediaReorganizer do
   empty pending folder must be before it is planned as `:trash` (or,
   without a configured hook, merely reported) instead of left alone.
   """
+  @impl true
   @spec plan(String.t() | nil, keyword()) :: [map()]
   def plan(actor_uuid, opts \\ []) do
     pending_days = Keyword.get(opts, :pending_days, @default_pending_days)

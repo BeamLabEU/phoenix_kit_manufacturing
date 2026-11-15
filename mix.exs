@@ -79,18 +79,13 @@ defmodule PhoenixKitManufacturing.MixProject do
       # API this module compiles or calls against — a lower resolution in a
       # consumer's build is a missing module, not a degraded feature.
       #
-      # phoenix_kit: 1.7.231 ships `PhoenixKitWeb.Live.UrlState`, which
-      # `Web.MachinesLive` `use`s (the `on_mount` tuple is baked into the
-      # .beam, so a precompiled artefact fails on first mount rather than at
-      # compile time). Supersedes the older 1.7.190 floor, which covered
-      # migration V144 — the tables this module's schemas map to.
-      # `Web.MachineFormLive` also imports `DecimalInput` / calls
-      # `Number.parse_decimal/2` (core 2.26.0). The pin deliberately stays
-      # `~> 2.0` anyway — see test/core_pin_conformance_test.exs — so a host
-      # on core < 2.26 must upgrade core alongside this module.
-      # Floor 2.65.0: the first core with the `file_references/0` and `expected_schema/0`
-      # callbacks this module implements (`@impl`). The ceiling is open through core 3.x.
-      pk_dep(:phoenix_kit, ">= 2.65.0 and < 4.0.0"),
+      # phoenix_kit: floor 3.5.0, the ecosystem-wide minimum core; it carries
+      # everything this module compiles against (`PhoenixKitWeb.Live.UrlState`,
+      # `DecimalInput`, `Number.parse_decimal/2`, `Storage.Reorganizer`, the
+      # `file_references/0` and `expected_schema/0` callbacks). Compound form,
+      # so the ceiling stays open through every core 3.x (see
+      # test/core_pin_conformance_test.exs).
+      pk_dep(:phoenix_kit, ">= 3.5.0 and < 4.0.0"),
       # phoenix_kit_comments: 0.2.8 ships `subscribe/2`/`unsubscribe/2` and
       # the list form of `count_comments/3` (`Manufacturing.Comments`);
       # 0.2.6 shipped `PhoenixKitComments.Embed`, which `Web.MachineFormLive`

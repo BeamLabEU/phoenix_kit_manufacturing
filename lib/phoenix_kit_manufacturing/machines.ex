@@ -712,17 +712,15 @@ defmodule PhoenixKitManufacturing.Machines do
 
   # Low-level: fire-and-forget log, guarded so it never crashes callers.
   defp maybe_log_activity(action, resource_type, resource_uuid, opts, metadata) do
-    if Code.ensure_loaded?(PhoenixKit.Activity) do
-      PhoenixKit.Activity.log(%{
-        action: action,
-        module: @module_key,
-        mode: Keyword.get(opts, :mode, "manual"),
-        actor_uuid: Keyword.get(opts, :actor_uuid),
-        resource_type: resource_type,
-        resource_uuid: resource_uuid,
-        metadata: metadata
-      })
-    end
+    PhoenixKit.Activity.log(%{
+      action: action,
+      module: @module_key,
+      mode: Keyword.get(opts, :mode, "manual"),
+      actor_uuid: Keyword.get(opts, :actor_uuid),
+      resource_type: resource_type,
+      resource_uuid: resource_uuid,
+      metadata: metadata
+    })
 
     :ok
   rescue
