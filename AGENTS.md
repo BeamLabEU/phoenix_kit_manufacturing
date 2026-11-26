@@ -202,6 +202,25 @@ PGDATABASE=manufacturing_test PGPORT=5544 PGPOOL=4 mix test
 Version-compliance: `test/phoenix_kit_manufacturing_test.exs` asserts
 `version/0` equals the current release. Keep it in sync (see below).
 
+## Content-Security-Policy
+
+The module works under a host policy that allows inline code by nonce only
+(`script-src 'self' 'nonce-…'`); core's guide is
+`guides/content-security-policy.md`. It renders no inline `<script>` /
+`<style>` and no inline event handler today: the one `<script>` in `lib/`
+(`files_card.ex`) is a colocated hook, which the compiler extracts into the
+host's JS and never renders.
+
+- No inline event handlers (`onclick=`, `onerror=` …): no nonce covers an
+  attribute. Use a `phx-` binding or a (colocated) hook.
+- A new inline `<style>` / `<script>` carries the page's nonce. Core's
+  `PhoenixKitWeb.CSP.nonce/1` is newer than this module's core floor, so read
+  it through a feature-detecting helper (`Code.ensure_loaded?/1` +
+  `function_exported?/3` + `apply/3`, answering `nil` on an older core;
+  reference: `PhoenixKitComments.Web.CSP`). Never raise the core floor for it.
+- `test/csp_inline_tags_test.exs` enforces it. Inline `style="…"` attributes
+  are not covered yet.
+
 ## Versioning & Releases
 
 Bump the version in **three places**:
